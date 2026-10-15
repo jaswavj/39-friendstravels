@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { toast } from 'react-toastify';
-import { ticketApi, ticketError, ticketPage } from '../../../api/ticket/ticket-api-service';
+import { ticketApi, ticketData, ticketError, ticketPage } from '../../../api/ticket/ticket-api-service';
 import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
 import '../master/Master.css';
 import '../credit/Credit.css';
+import '../admin/MonthlyBills.css';
 import ReportActions from '../account-reports/ReportActions';
 
 type Row = {
@@ -12,6 +13,8 @@ type Row = {
   customerName: string;
   phone: string;
   route: string;
+  fromName?: string;
+  toName?: string;
   transport: string;
   notes: string;
   amount: number;
@@ -24,6 +27,8 @@ type Row = {
 
 const today = () => new Date().toISOString().slice(0, 10);
 const n = (v?: number) => Number(v || 0).toFixed(2);
+const inr = (v?: number) =>
+  `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 const TicketReportPage: React.FC = () => {
   const [from, setFrom] = useState(today());
@@ -31,20 +36,38 @@ const TicketReportPage: React.FC = () => {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
+  const [amount, setAmount] = useState(0);
+  const [credit, setCredit] = useState(0);
+  const [view, setView] = useState<Row | null>(null);
+  const [viewBusy, setViewBusy] = useState(false);
+
+  const openView = async (row: Row) => {
+    setView(row);
+    if (!row.id) return;
+    setViewBusy(true);
+    try {
+      const full = ticketData<Row>(await ticketApi.get(row.id));
+      setView({ ...row, ...full, userName: full.userName || row.userName });
+    } catch {
+      /* list row already has the ticket fields */
+    } finally {
+      setViewBusy(false);
+    }
+  };
 
   const search = async (p = 0) => {
     try {
-      const pg = ticketPage<Row>(await ticketApi.report(from, to, p, DEFAULT_PAGE_SIZE));
+      const res = await ticketApi.report(from, to, p, DEFAULT_PAGE_SIZE);
+      const pg = ticketPage<Row>(res);
       setRows(pg.items);
       setTotal(pg.total);
       setPage(p);
+      setAmount(Number(res?.data?.amount || 0));
+      setCredit(Number(res?.data?.credit || 0));
     } catch (err) {
       toast.error(ticketError(err, 'Could not load ticket report'));
     }
   };
-
-  const pageAmount = (rows || []).reduce((sum, row) => sum + (row.amount || 0), 0);
-  const pageCredit = (rows || []).reduce((sum, row) => sum + (row.credit || 0), 0);
 
   return (
     <div className="mst-page">
@@ -87,12 +110,12 @@ const TicketReportPage: React.FC = () => {
               <div className="crd-stat-v">{total}</div>
             </div>
             <div className="mst-card crd-stat">
-              <div className="crd-stat-l">Page Amount</div>
-              <div className="crd-stat-v">₹ {n(pageAmount)}</div>
+              <div className="crd-stat-l">Total Amount</div>
+              <div className="crd-stat-v">₹ {n(amount)}</div>
             </div>
             <div className="mst-card crd-stat">
-              <div className="crd-stat-l">Page Credit</div>
-              <div className="crd-stat-v due">₹ {n(pageCredit)}</div>
+              <div className="crd-stat-l">Total Credit</div>
+              <div className="crd-stat-v due">₹ {n(credit)}</div>
             </div>
             <div className="mst-card crd-stat">
               <div className="crd-stat-l">Report Period</div>
@@ -113,7 +136,7 @@ const TicketReportPage: React.FC = () => {
                 <tbody>
                   {rows.length === 0 && <tr><td colSpan={12} className="mst-empty">No tickets found for the selected period.</td></tr>}
                   {rows.map((row, i) => (
-                    <tr key={row.id}>
+                    <tr key={row.id} className="mst-click-row" title="View ticket details" onClick={() => openView(row)}>
                       <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                       <td>{row.dateTime}</td>
                       <td>{row.customerName || '—'}</td>
@@ -134,6 +157,36 @@ const TicketReportPage: React.FC = () => {
             <ListPagination page={page} size={DEFAULT_PAGE_SIZE} total={total} onChange={(p) => search(p)} />
           </div>
         </>
+      )}
+
+      {view && (
+        <div className="crd-modal no-print" onClick={() => setView(null)}>
+          <div className="crd-modal-box" onClick={(e) => e.stopPropagation()}>
+            <div className="crd-modal-h">
+              <h3 style={{ margin: 0, fontSize: 18 }}>Ticket #{view.id}{viewBusy ? ' …' : ''}</h3>
+              <button className="mst-btn mst-btn-outline" type="button" onClick={() => setView(null)}>Close</button>
+            </div>
+            <div className="crd-modal-body mb-view-body">
+              <div className="mb-view-row"><span>Date</span><strong>{view.dateTime || '-'}</strong></div>
+              <div className="mb-view-row"><span>Customer</span><strong>{view.customerName || 'Walk-in'}</strong></div>
+              <div className="mb-view-row"><span>Phone</span><strong>{view.phone || '-'}</strong></div>
+              <div className="mb-view-row"><span>From</span><strong>{view.fromName || '-'}</strong></div>
+              <div className="mb-view-row"><span>To</span><strong>{view.toName || '-'}</strong></div>
+              <div className="mb-view-row"><span>Route</span><strong>{view.route || '-'}</strong></div>
+              <div className="mb-view-row"><span>Transport</span><strong>{view.transport || '-'}</strong></div>
+              <div className="mb-view-row"><span>Amount</span><strong>{inr(view.amount)}</strong></div>
+              <div className="mb-view-row"><span>Cash</span><strong>{inr(view.cashPaid)}</strong></div>
+              <div className="mb-view-row"><span>GPay</span><strong>{inr(view.gpayPaid)}</strong></div>
+              <div className="mb-view-row"><span>Card</span><strong>{inr(view.cardPaid)}</strong></div>
+              <div className="mb-view-row"><span>Credit</span><strong>{inr(view.credit)}</strong></div>
+              <div className="mb-view-row"><span>Notes</span><strong>{view.notes || '-'}</strong></div>
+              <div className="mb-view-row"><span>Entry By</span><strong>{view.userName || '-'}</strong></div>
+            </div>
+            <div className="mb-view-foot">
+              <button className="mst-btn mst-btn-outline" type="button" onClick={() => setView(null)}>Close</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

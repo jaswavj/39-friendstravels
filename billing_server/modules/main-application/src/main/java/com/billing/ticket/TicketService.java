@@ -65,40 +65,45 @@ public class TicketService {
         );
     }
 
-    public PageResult<Map<String, Object>> report(String from, String to, String customerName, String phone,
-                                                 int page, int size) {
+    public Map<String, Object> report(String from, String to, String customerName, String phone,
+                                     int page, int size) {
         String fromDate = required(from, "From date is required");
         String toDate = required(to, "To date is required");
         String name = customerName == null ? "" : customerName.trim();
         String phoneTerm = phone == null ? "" : phone.trim();
-        StringBuilder sql = new StringBuilder(
-                "SELECT t.id, DATE_FORMAT(t.entry_date_time, '%Y-%m-%d %H:%i') AS dateTime, "
-                        + "COALESCE(c.name, '') AS customerName, COALESCE(c.phone_number, '') AS phone, "
-                        + "fp.name AS fromName, tp.name AS toName, COALESCE(t.transport, '') AS transport, "
-                        + "COALESCE(t.notes, '') AS notes, t.amount, t.cash_paid, t.gpay_paid, t.card_paid, "
-                        + "t.credit_amount, COALESCE(u.user_name, '') AS userName "
-                        + "FROM ticket_entry t "
-                        + "JOIN ticket_place fp ON fp.id = t.from_place_id "
-                        + "JOIN ticket_place tp ON tp.id = t.to_place_id "
+        StringBuilder filter = new StringBuilder(
+                " FROM ticket_entry t "
                         + "LEFT JOIN customers c ON c.id = t.customer_id "
-                        + "LEFT JOIN users u ON u.id = t.uid "
                         + "WHERE t.is_active = 1 AND DATE(t.entry_date_time) BETWEEN ? AND ?"
         );
         List<Object> args = new ArrayList<>();
         args.add(fromDate);
         args.add(toDate);
         if (!name.isEmpty()) {
-            sql.append(" AND c.name LIKE ?");
+            filter.append(" AND c.name LIKE ?");
             args.add("%" + name + "%");
         }
         if (!phoneTerm.isEmpty()) {
-            sql.append(" AND c.phone_number LIKE ?");
+            filter.append(" AND c.phone_number LIKE ?");
             args.add("%" + phoneTerm + "%");
         }
-        sql.append(" ORDER BY t.entry_date_time DESC, t.id DESC");
-        return JdbcPageHelper.query(
+        String sql = "SELECT t.id, DATE_FORMAT(t.entry_date_time, '%Y-%m-%d %H:%i') AS dateTime, "
+                + "COALESCE(c.name, '') AS customerName, COALESCE(c.phone_number, '') AS phone, "
+                + "fp.name AS fromName, tp.name AS toName, COALESCE(t.transport, '') AS transport, "
+                + "COALESCE(t.notes, '') AS notes, t.amount, t.cash_paid, t.gpay_paid, t.card_paid, "
+                + "t.credit_amount, COALESCE(u.user_name, '') AS userName "
+                + "FROM ticket_entry t "
+                + "JOIN ticket_place fp ON fp.id = t.from_place_id "
+                + "JOIN ticket_place tp ON tp.id = t.to_place_id "
+                + "LEFT JOIN customers c ON c.id = t.customer_id "
+                + "LEFT JOIN users u ON u.id = t.uid "
+                + "WHERE t.is_active = 1 AND DATE(t.entry_date_time) BETWEEN ? AND ?"
+                + (name.isEmpty() ? "" : " AND c.name LIKE ?")
+                + (phoneTerm.isEmpty() ? "" : " AND c.phone_number LIKE ?")
+                + " ORDER BY t.entry_date_time DESC, t.id DESC";
+        PageResult<Map<String, Object>> pg = JdbcPageHelper.query(
                 jdbcTemplate,
-                sql.toString(),
+                sql,
                 (rs, i) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("id", rs.getLong("id"));
@@ -122,6 +127,18 @@ public class TicketService {
                 size,
                 args.toArray()
         );
+        Map<String, Object> sums = jdbcTemplate.queryForMap(
+                "SELECT COALESCE(SUM(t.amount), 0) AS amount, COALESCE(SUM(t.credit_amount), 0) AS credit" + filter,
+                args.toArray()
+        );
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("items", pg.getItems());
+        data.put("total", pg.getTotal());
+        data.put("page", pg.getPage());
+        data.put("size", pg.getSize());
+        data.put("amount", num(sums.get("amount")));
+        data.put("credit", num(sums.get("credit")));
+        return data;
     }
 
     public Map<String, Object> get(long id) {
