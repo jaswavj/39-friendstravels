@@ -72,7 +72,7 @@ const Header = () => {
                     >
                         <FontAwesomeIcon icon={faBars} />
                     </button>
-                    <Link to={defaultAppPath(loginData?.moduleIds)} className="header-brand" title="Home">
+                    <Link to={defaultAppPath(loginData?.moduleIds)} className="header-brand" title="Dashboard">
                         {billingConfig.appName}
                     </Link>
                 </div>

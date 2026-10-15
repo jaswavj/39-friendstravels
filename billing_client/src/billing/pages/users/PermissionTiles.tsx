@@ -16,6 +16,9 @@ export const permIcon = (name: string) => {
   if (n.includes('credit')) return 'fas fa-money-check-alt';
   if (n.includes('order')) return 'fas fa-list-alt';
   if (n.includes('expense')) return 'fas fa-money-bill-wave';
+  if (n.includes('ticket report')) return 'fas fa-file-alt';
+  if (n.includes('ticket')) return 'fas fa-ticket-alt';
+  if (n.includes('dashboard')) return 'fas fa-chart-line';
   if (n.includes('discount')) return 'fas fa-percent';
   if (n.includes('print')) return 'fas fa-print';
   if (n.includes('cancel')) return 'fas fa-ban';

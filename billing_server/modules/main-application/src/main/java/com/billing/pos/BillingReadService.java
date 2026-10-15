@@ -45,13 +45,17 @@ public class BillingReadService {
     }
 
     private void addQuotationColumn(String name, String definition) {
-        Integer count = jdbcTemplate.queryForObject(
-                "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prod_quotation' AND COLUMN_NAME = ?",
-                Integer.class,
-                name
-        );
-        if (count == null || count == 0) {
-            jdbcTemplate.execute("ALTER TABLE prod_quotation ADD COLUMN " + name + " " + definition);
+        try {
+            Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'prod_quotation' AND COLUMN_NAME = ?",
+                    Integer.class,
+                    name
+            );
+            if (count == null || count == 0) {
+                jdbcTemplate.execute("ALTER TABLE prod_quotation ADD COLUMN " + name + " " + definition);
+            }
+        } catch (Exception ignored) {
+            // POS tables may be dropped; print files stay as reference
         }
     }
 

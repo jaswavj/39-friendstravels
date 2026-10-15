@@ -48,12 +48,12 @@ const ModuleSidebarShell: React.FC<ModuleSidebarShellProps> = ({
                     to={homePath}
                     className={`menu-item-button ${isHome ? 'active' : ''}`}
                     onClick={onCloseMobile}
-                    title={collapsed ? 'Home' : undefined}
+                    title={collapsed ? 'Dashboard' : undefined}
                   >
                     <span className="menu-item-icon">
                       <FontAwesomeIcon icon={faHouse} />
                     </span>
-                    <span className="menu-item-text">Home</span>
+                    <span className="menu-item-text">Dashboard</span>
                   </Link>
                 </li>
               </ul>

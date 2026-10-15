@@ -19,6 +19,8 @@ const today = () => new Date().toISOString().slice(0, 10);
 
 const actionLabel = (action?: string) => {
   const value = (action || '').toUpperCase();
+  if (value === 'CREATE') return 'Booked';
+  if (value === 'VIEW') return 'Viewed';
   if (value === 'EDIT') return 'Edited';
   if (value === 'CANCEL') return 'Cancelled';
   if (value === 'DATE_CHANGE') return 'Date changed';
@@ -58,13 +60,13 @@ const EditLogPage: React.FC = () => {
       </div>
       {rows && (
         <div className="mst-card">
-          <div className="mst-card-h">Edits and cancellations from {from} to {to} ({total})</div>
+          <div className="mst-card-h">Ticket bookings, views, and edits from {from} to {to} ({total})</div>
           <div className="mst-table-wrap">
             <table className="mst-table">
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Bill No</th>
+                  <th>Ticket</th>
                   <th>Action</th>
                   <th>Details</th>
                   <th>Date</th>
@@ -73,7 +75,7 @@ const EditLogPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {rows.length === 0 && <tr><td colSpan={7} className="mst-empty">No edits or cancellations in this period.</td></tr>}
+                {rows.length === 0 && <tr><td colSpan={7} className="mst-empty">No ticket log entries in this period.</td></tr>}
                 {rows.map((row, i) => (
                   <tr key={row.id || `${row.billNo}-${i}`}>
                     <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>

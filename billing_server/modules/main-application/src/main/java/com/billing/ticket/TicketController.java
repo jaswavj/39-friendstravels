@@ -2,9 +2,11 @@ package com.billing.ticket;
 
 import com.billing.core.response.ResponseDO;
 import com.billing.security.PlatformSecurityContext;
+import com.billing.ticket.dto.TicketCancelRequest;
 import com.billing.ticket.dto.TicketSaveRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -28,6 +30,38 @@ public class TicketController {
     @GetMapping("/places")
     public ResponseDO searchPlaces(@RequestParam(required = false) String q) {
         return ok(ticketService.searchPlaces(q));
+    }
+
+    @GetMapping("/report")
+    public ResponseDO report(@RequestParam String from,
+                             @RequestParam String to,
+                             @RequestParam(required = false) String customerName,
+                             @RequestParam(required = false) String phone,
+                             @RequestParam(defaultValue = "0") int page,
+                             @RequestParam(defaultValue = "25") int size) {
+        return ok(ticketService.report(from, to, customerName, phone, page, size));
+    }
+
+    @GetMapping("/entries/{id}")
+    public ResponseDO get(@PathVariable long id) {
+        return ok(ticketService.get(id));
+    }
+
+    @PostMapping("/entries/{id}/view")
+    public ResponseDO view(@PathVariable long id) {
+        ticketService.logView(id, securityContext.authenticateUser().getId());
+        return ok(true);
+    }
+
+    @PostMapping("/entries/{id}/cancel")
+    public ResponseDO cancel(@PathVariable long id, @RequestBody TicketCancelRequest request) {
+        ticketService.cancel(id, request, securityContext.authenticateUser().getId());
+        return ok(true);
+    }
+
+    @PostMapping("/entries/{id}")
+    public ResponseDO update(@PathVariable long id, @RequestBody TicketSaveRequest request) {
+        return ok(ticketService.update(id, request, securityContext.authenticateUser().getId()));
     }
 
     @PostMapping("/entries")

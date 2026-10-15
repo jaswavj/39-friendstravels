@@ -15,12 +15,22 @@ const DefaultAppRedirect = lazy(() =>
 const Dashboard = lazy(() => import('../billing/pages/Dashboard'));
 const PrintBill = lazy(() => import('../billing/pages/PrintBill'));
 const CustomerBalancePage = lazy(() => import('../billing/pages/credit/CustomerBalancePage'));
+const CreateUserPage = lazy(() => import('../billing/pages/users/CreateUserPage'));
+const ModulePermissionPage = lazy(() => import('../billing/pages/users/PermissionPage'));
 const ChangePasswordPage = lazy(() => import('../billing/pages/users/ChangePasswordPage'));
 const CompanyDetailsPage = lazy(() => import('../billing/pages/admin/CompanyDetailsPage'));
+const EditBillPage = lazy(() => import('../billing/pages/admin/EditBillPage'));
+const MonthlyBillsPage = lazy(() => import('../billing/pages/admin/MonthlyBillsPage'));
+const EditLogPage = lazy(() => import('../billing/pages/admin/EditLogPage'));
+const ChangePaymentTypePage = lazy(() => import('../billing/pages/admin/ChangePaymentTypePage'));
+const BillDateChangeReportPage = lazy(() => import('../billing/pages/admin/BillDateChangeReportPage'));
+const CancelBillReportPage = lazy(() => import('../billing/pages/admin/CancelBillReportPage'));
+const PaymentTypeChangeReportPage = lazy(() => import('../billing/pages/admin/PaymentTypeChangeReportPage'));
 const ExpenseTypePage = lazy(() => import('../billing/pages/expense/ExpenseTypePage'));
 const ExpenseEntryPage = lazy(() => import('../billing/pages/expense/ExpenseEntryPage'));
 const ExpenseReportPage = lazy(() => import('../billing/pages/expense/ExpenseReportPage'));
 const TicketEntryPage = lazy(() => import('../billing/pages/ticket/TicketEntryPage'));
+const TicketReportPage = lazy(() => import('../billing/pages/ticket/TicketReportPage'));
 const DayBookPage = lazy(() => import('../billing/pages/account-reports/DayBookPage'));
 
 const guard = (element: ReactElement) => <AuthGuard component={element} />;
@@ -46,11 +56,22 @@ const AppRouter = () => {
               <Route element={<ModuleAccessGuard />}>
               <Route path="account-reports/day-book" element={<DayBookPage />} />
               <Route path="credit/customer-balance" element={<CustomerBalancePage />} />
+              <Route path="users/create" element={<CreateUserPage />} />
+              <Route path="users/permission" element={<ModulePermissionPage />} />
               <Route path="admin/company-details" element={<CompanyDetailsPage />} />
+              <Route path="admin/edit-bill" element={<EditBillPage />} />
+              <Route path="admin/monthly-bills" element={<MonthlyBillsPage />} />
+              <Route path="admin/edit-ticket/:id" element={<TicketEntryPage />} />
+              <Route path="admin/edit-log" element={<EditLogPage />} />
+              <Route path="admin/change-payment-type" element={<ChangePaymentTypePage />} />
+              <Route path="admin/bill-date-change-report" element={<BillDateChangeReportPage />} />
+              <Route path="admin/cancel-bill-report" element={<CancelBillReportPage />} />
+              <Route path="admin/payment-type-change-report" element={<PaymentTypeChangeReportPage />} />
               <Route path="expense/type" element={<ExpenseTypePage />} />
               <Route path="expense/entry" element={<ExpenseEntryPage />} />
               <Route path="expense/report" element={<ExpenseReportPage />} />
               <Route path="ticket/entry" element={<TicketEntryPage />} />
+              <Route path="ticket/report" element={<TicketReportPage />} />
               </Route>
               <Route index element={<DefaultAppRedirect />} />
             </Route>

@@ -9,20 +9,13 @@ export interface MenuItemConfig {
   submenus?: MenuItemConfig[];
 }
 
-/** Old JSP user_modules IDs — a menu shows only if the user has that module. */
 export const MENU_MODULE = {
-  billing: 1,
-  master: 2,
-  stockReports: 3,
-  users: 4,
-  inventory: 5,
-  accountReports: 6,
-  admin: 7,
-  statistics: 8,
-  credit: 10,
-  orderList: 11,
-  expense: 12,
-  bookTicket: 13,
+  dashboard: 1,
+  bookTicket: 2,
+  credit: 3,
+  ticketReport: 4,
+  expense: 5,
+  admin: 6,
 } as const;
 
 export const filterMenuByModules = (items: MenuItemConfig[], moduleIds: number[]): MenuItemConfig[] => {
@@ -33,51 +26,75 @@ export const filterMenuByModules = (items: MenuItemConfig[], moduleIds: number[]
 export const hasModuleAccess = (moduleIds: number[] | undefined, moduleId: number): boolean =>
   (moduleIds || []).map(Number).includes(moduleId);
 
-export const defaultAppPath = (moduleIds: number[] | undefined): string =>
-  hasModuleAccess(moduleIds, MENU_MODULE.statistics)
-    ? routerPathNames.dashboard
-    : routerPathNames.ticket.entry;
+export const defaultAppPath = (moduleIds: number[] | undefined): string => {
+  if (hasModuleAccess(moduleIds, MENU_MODULE.dashboard)) return routerPathNames.dashboard;
+  if (hasModuleAccess(moduleIds, MENU_MODULE.bookTicket)) return routerPathNames.ticket.entry;
+  if (hasModuleAccess(moduleIds, MENU_MODULE.credit)) return routerPathNames.credit.customerBalance;
+  if (hasModuleAccess(moduleIds, MENU_MODULE.ticketReport)) return routerPathNames.ticket.report;
+  if (hasModuleAccess(moduleIds, MENU_MODULE.expense)) return routerPathNames.expense.entry;
+  if (hasModuleAccess(moduleIds, MENU_MODULE.admin)) return routerPathNames.admin.companyDetails;
+  return routerPathNames.dashboard;
+};
 
 export const moduleIdForPath = (pathname: string): number | null => {
   if (pathname.includes('/app/users/change-password')) return null;
-  if (pathname.includes('/app/statistics') || pathname.includes('/app/dashboard')) return MENU_MODULE.statistics;
-  if (pathname.includes('/app/ticket')) return MENU_MODULE.bookTicket;
-  if (pathname.includes('/app/credit/customer-balance')) return MENU_MODULE.bookTicket;
-  if (pathname.includes('/app/expense')) return null;
-  if (pathname.includes('/app/account-reports/day-book')) return null;
-  if (pathname.includes('/app/admin/company-details')) return null;
   if (pathname.includes('/app/billing/print')) return null;
+  if (pathname.includes('/app/statistics') || pathname.includes('/app/dashboard')) return MENU_MODULE.dashboard;
+  if (pathname.includes('/app/ticket/report') || pathname.includes('/app/account-reports/day-book')) return MENU_MODULE.ticketReport;
+  if (pathname.includes('/app/ticket')) return MENU_MODULE.bookTicket;
+  if (pathname.includes('/app/credit')) return MENU_MODULE.credit;
+  if (pathname.includes('/app/expense')) return MENU_MODULE.expense;
+  if (pathname.includes('/app/users') || pathname.includes('/app/admin')) return MENU_MODULE.admin;
   return null;
 };
 
 export const billingMenuConfig: MenuItemConfig[] = [
   {
-    id: 'dashboard',
-    name: 'Dashboard',
-    icon: 'fas fa-chart-line',
-    moduleId: MENU_MODULE.statistics,
-    url: routerPathNames.dashboard,
-  },
-  {
     id: 'book-ticket',
-    name: 'Ticket',
+    name: 'Book Ticket Entry',
     icon: 'fas fa-ticket-alt',
     moduleId: MENU_MODULE.bookTicket,
+    url: routerPathNames.ticket.entry,
+  },
+  {
+    id: 'credit',
+    name: 'Customers Balance',
+    icon: 'fas fa-wallet',
+    moduleId: MENU_MODULE.credit,
+    url: routerPathNames.credit.customerBalance,
+  },
+  {
+    id: 'ticket-report',
+    name: 'Ticket Report',
+    icon: 'fas fa-file-alt',
+    moduleId: MENU_MODULE.ticketReport,
     submenus: [
-      { id: 'ticket-entry', name: 'Ticket Entry', url: routerPathNames.ticket.entry, icon: 'fas fa-plus-circle' },
-      { id: 'customer-balance', name: 'Customers Balance', url: routerPathNames.credit.customerBalance, icon: 'fas fa-wallet' },
+      { id: 'ticket-list', name: 'Ticket Report', url: routerPathNames.ticket.report, icon: 'fas fa-list' },
+      { id: 'day-book', name: 'Day Book', url: routerPathNames.accountReports.dayBook, icon: 'fas fa-book' },
     ],
   },
   {
-    id: 'reports',
-    name: 'Reports',
-    icon: 'fas fa-file-alt',
+    id: 'expense',
+    name: 'Expense',
+    icon: 'fas fa-money-bill-wave',
+    moduleId: MENU_MODULE.expense,
     submenus: [
-      { id: 'day-book', name: 'Day Book', url: routerPathNames.accountReports.dayBook, icon: 'fas fa-book' },
-      { id: 'expense-entry', name: 'Expense Entry', url: routerPathNames.expense.entry, icon: 'fas fa-receipt' },
       { id: 'expense-type', name: 'Expense Type', url: routerPathNames.expense.type, icon: 'fas fa-tags' },
+      { id: 'expense-entry', name: 'Expense Entry', url: routerPathNames.expense.entry, icon: 'fas fa-receipt' },
       { id: 'expense-report', name: 'Expense Report', url: routerPathNames.expense.report, icon: 'fas fa-chart-line' },
+    ],
+  },
+  {
+    id: 'admin',
+    name: 'Admin',
+    icon: 'fas fa-cog',
+    moduleId: MENU_MODULE.admin,
+    submenus: [
+      { id: 'create-user', name: 'Create User', url: routerPathNames.users.create, icon: 'fas fa-user-plus' },
+      { id: 'permission', name: 'Module Permission', url: routerPathNames.users.permission, icon: 'fas fa-key' },
       { id: 'company-details', name: 'Company Details', url: routerPathNames.admin.companyDetails, icon: 'fas fa-building' },
+      { id: 'monthly-bills', name: 'Monthly Tickets', url: routerPathNames.admin.monthlyBills, icon: 'fas fa-ticket-alt' },
+      { id: 'edit-log', name: 'Edit Log', url: routerPathNames.admin.editLog, icon: 'fas fa-history' },
     ],
   },
 ];

@@ -832,9 +832,8 @@ public class AdminService {
     }
 
     public PageResult<EditLogRow> editLog(String from, String to, int page, int size) {
-        ensureEditLogTable();
-        String sql = "SELECT a.id, a.bill_id, a.bill_display, a.action, a.details, a.date, a.time, IFNULL(u.user_name, '') AS user_name " +
-                "FROM prod_bill_edit_log a LEFT JOIN users u ON u.id = a.uid " +
+        String sql = "SELECT a.id, a.ticket_id, a.doc_no, a.action, a.details, a.date, a.time, IFNULL(u.user_name, '') AS user_name " +
+                "FROM ticket_edit_log a LEFT JOIN users u ON u.id = a.uid " +
                 "WHERE a.date BETWEEN ? AND ? ORDER BY a.date DESC, a.time DESC, a.id DESC";
         return com.billing.common.JdbcPageHelper.query(
                 jdbcTemplate,
@@ -842,8 +841,8 @@ public class AdminService {
                 (rs, i) -> {
                     EditLogRow row = new EditLogRow();
                     row.setId(rs.getLong("id"));
-                    row.setBillId(rs.getLong("bill_id"));
-                    row.setBillNo(rs.getString("bill_display"));
+                    row.setBillId(rs.getLong("ticket_id"));
+                    row.setBillNo(rs.getString("doc_no"));
                     row.setAction(rs.getString("action"));
                     row.setDetails(rs.getString("details"));
                     row.setDate(asStr(rs.getDate("date")));

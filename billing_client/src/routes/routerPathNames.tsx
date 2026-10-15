@@ -68,6 +68,7 @@ export const routerPathNames = {
     companyDetails: '/app/admin/company-details',
     editBill: '/app/admin/edit-bill',
     monthlyBills: '/app/admin/monthly-bills',
+    editTicket: '/app/admin/edit-ticket',
     editLog: '/app/admin/edit-log',
     changePaymentType: '/app/admin/change-payment-type',
     exchange: '/app/admin/exchange',
@@ -83,6 +84,7 @@ export const routerPathNames = {
   },
   ticket: {
     entry: '/app/ticket/entry',
+    report: '/app/ticket/report',
   },
   orderList: '/app/order-list',
 };

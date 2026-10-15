@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { ticketApi, ticketData, ticketError } from '../../../api/ticket/ticket-api-service';
+import { routerPathNames } from '../../../routes/routerPathNames';
 import '../master/Master.css';
 import '../credit/Credit.css';
 
@@ -16,6 +18,26 @@ const n2 = (v: number) => (Number.isFinite(v) ? v.toFixed(2) : '0.00');
 const num = (v: string) => {
   const n = parseFloat(v);
   return Number.isFinite(n) ? n : 0;
+};
+
+type TicketDetail = {
+  id: number;
+  customerId: number;
+  customerName: string;
+  phone: string;
+  fromPlaceId: number;
+  fromName: string;
+  toPlaceId: number;
+  toName: string;
+  transport: string;
+  notes: string;
+  amount: number;
+  cashPaid: number;
+  gpayPaid: number;
+  cardPaid: number;
+  credit: number;
+  entryDate: string;
+  entryTime: string;
 };
 
 const emptyForm = () => ({
@@ -37,19 +59,67 @@ const emptyForm = () => ({
   entryTime: nowTime(),
 });
 
+const formFromTicket = (t: TicketDetail) => ({
+  customerId: Number(t.customerId || 0),
+  customerName: t.customerName || '',
+  phone: t.phone || '',
+  fromId: Number(t.fromPlaceId || 0),
+  fromName: t.fromName || '',
+  toId: Number(t.toPlaceId || 0),
+  toName: t.toName || '',
+  transport: t.transport || '',
+  notes: t.notes || '',
+  amount: n2(Number(t.amount || 0)),
+  cashPaid: n2(Number(t.cashPaid || 0)),
+  gpayPaid: n2(Number(t.gpayPaid || 0)),
+  cardPaid: n2(Number(t.cardPaid || 0)),
+  credit: n2(Number(t.credit || 0)),
+  entryDate: t.entryDate || today(),
+  entryTime: t.entryTime || nowTime(),
+});
+
 const TicketEntryPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { id: pathId } = useParams();
+  const [params] = useSearchParams();
+  const ticketId = Number(pathId || params.get('id') || 0) || 0;
+  const editing = ticketId > 0;
   const [form, setForm] = useState(emptyForm);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(editing);
   const [custHits, setCustHits] = useState<CustomerHit[]>([]);
   const [placeHits, setPlaceHits] = useState<PlaceHit[]>([]);
   const [open, setOpen] = useState<'name' | 'phone' | 'from' | 'to' | null>(null);
   const [active, setActive] = useState(0);
   const timer = useRef<number | null>(null);
   const seq = useRef(0);
+  const original = useRef(emptyForm());
 
   useEffect(() => () => {
     if (timer.current) window.clearTimeout(timer.current);
   }, []);
+
+  useEffect(() => {
+    if (!editing) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const ticket = ticketData<TicketDetail>(await ticketApi.get(ticketId));
+        if (cancelled) return;
+        const next = formFromTicket(ticket);
+        original.current = next;
+        setForm(next);
+      } catch (err) {
+        if (cancelled) return;
+        toast.error(ticketError(err, 'Could not load ticket'));
+        navigate(routerPathNames.admin.monthlyBills);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [editing, ticketId, navigate]);
 
   const searchCustomers = (value: string, field: 'name' | 'phone') => {
     setOpen(field);
@@ -243,26 +313,36 @@ const TicketEntryPage: React.FC = () => {
       toast.error('Cash + GPay + Card + Credit must equal the ticket amount');
       return;
     }
+    const payload = {
+      customerId: form.customerId || undefined,
+      customerName: form.customerName.trim(),
+      phone: form.phone.trim(),
+      fromPlaceId: form.fromId || undefined,
+      fromName: form.fromName.trim(),
+      toPlaceId: form.toId || undefined,
+      toName: form.toName.trim(),
+      transport: form.transport.trim(),
+      notes: form.notes.trim(),
+      amount,
+      cashPaid: cash,
+      gpayPaid: gpay,
+      cardPaid: card,
+      credit,
+      entryDate: form.entryDate,
+      entryTime: form.entryTime,
+    };
     setBusy(true);
     try {
-      const saved = ticketData<{ credit: number; balance: number }>(await ticketApi.save({
-        customerId: form.customerId || undefined,
-        customerName: form.customerName.trim(),
-        phone: form.phone.trim(),
-        fromPlaceId: form.fromId || undefined,
-        fromName: form.fromName.trim(),
-        toPlaceId: form.toId || undefined,
-        toName: form.toName.trim(),
-        transport: form.transport.trim(),
-        notes: form.notes.trim(),
-        amount,
-        cashPaid: cash,
-        gpayPaid: gpay,
-        cardPaid: card,
-        credit,
-        entryDate: form.entryDate,
-        entryTime: form.entryTime,
-      }));
+      const saved = ticketData<{ credit: number; balance: number }>(
+        editing ? await ticketApi.update(ticketId, payload) : await ticketApi.save(payload)
+      );
+      if (editing) {
+        toast.success(credit > 0
+          ? `Ticket updated. Credit ₹${n2(credit)}. Customer balance ₹${n2(saved.balance)}`
+          : 'Ticket updated');
+        navigate(routerPathNames.admin.monthlyBills);
+        return;
+      }
       if (credit > 0) {
         toast.success(`Ticket saved. Credit ₹${n2(credit)} added. Customer balance ₹${n2(saved.balance)}`);
       } else {
@@ -271,17 +351,21 @@ const TicketEntryPage: React.FC = () => {
       setForm(emptyForm());
       setOpen(null);
     } catch (err) {
-      toast.error(ticketError(err, 'Could not save ticket'));
+      toast.error(ticketError(err, editing ? 'Could not update ticket' : 'Could not save ticket'));
     } finally {
       setBusy(false);
     }
   };
 
+  if (loading) {
+    return <div className="mst-page"><div className="mst-empty">Loading ticket…</div></div>;
+  }
+
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-ticket-alt" /> Ticket Entry</h2>
+      <h2 className="mst-title"><i className="fas fa-ticket-alt" /> {editing ? 'Edit Ticket' : 'Ticket Entry'}</h2>
       <div className="mst-card" style={{ maxWidth: 920 }}>
-        <div className="mst-card-h">Book Ticket</div>
+        <div className="mst-card-h">{editing ? `Ticket #${ticketId}` : 'Book Ticket'}</div>
         <form className="mst-card-b mst-form" onSubmit={onSubmit}>
           <div className="mst-fg">
             <label>Customer Name <span className="req">*</span></label>
@@ -450,8 +534,17 @@ const TicketEntryPage: React.FC = () => {
             </div>
           </div>
           <div className="mst-actions" style={{ gridColumn: '1 / -1' }}>
-            <button className="mst-btn mst-btn-outline" type="button" onClick={() => { setForm(emptyForm()); setOpen(null); }}>Reset</button>
-            <button className="mst-btn mst-btn-primary" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save Ticket'}</button>
+            {editing && (
+              <button className="mst-btn mst-btn-outline" type="button" onClick={() => navigate(routerPathNames.admin.monthlyBills)}>
+                Back
+              </button>
+            )}
+            <button className="mst-btn mst-btn-outline" type="button" onClick={() => { setForm(editing ? original.current : emptyForm()); setOpen(null); }}>
+              Reset
+            </button>
+            <button className="mst-btn mst-btn-primary" type="submit" disabled={busy}>
+              {busy ? (editing ? 'Updating…' : 'Saving…') : (editing ? 'Update Ticket' : 'Save Ticket')}
+            </button>
           </div>
         </form>
       </div>
