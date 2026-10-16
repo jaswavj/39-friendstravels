@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';
 import { ticketApi, ticketData, ticketError, ticketPage } from '../../../api/ticket/ticket-api-service';
 import ListPagination, { DEFAULT_PAGE_SIZE } from '../../components/ListPagination';
@@ -9,12 +9,14 @@ import ReportActions from '../account-reports/ReportActions';
 
 type Row = {
   id: number;
+  kind?: string;
   dateTime: string;
   customerName: string;
   phone: string;
   route: string;
   fromName?: string;
   toName?: string;
+  incomeTypeName?: string;
   transport: string;
   notes: string;
   amount: number;
@@ -25,14 +27,24 @@ type Row = {
   userName: string;
 };
 
+const isIncome = (row?: Row | null) =>
+  (row?.kind || '').toUpperCase() === 'INCOME' || !!(row?.incomeTypeName || '').trim();
+
+const typeLabel = (row?: Row | null) => (isIncome(row) ? 'Other Income' : 'Ticket Entry');
+
 const today = () => new Date().toISOString().slice(0, 10);
 const n = (v?: number) => Number(v || 0).toFixed(2);
 const inr = (v?: number) =>
   `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+type IncomeType = { id: number; name: string };
+
 const TicketReportPage: React.FC = () => {
   const [from, setFrom] = useState(today());
   const [to, setTo] = useState(today());
+  const [kind, setKind] = useState('');
+  const [incomeType, setIncomeType] = useState('');
+  const [incomeTypes, setIncomeTypes] = useState<IncomeType[]>([]);
   const [rows, setRows] = useState<Row[] | null>(null);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
@@ -55,9 +67,24 @@ const TicketReportPage: React.FC = () => {
     }
   };
 
+  useEffect(() => {
+    ticketApi.searchIncomeTypes('')
+      .then((res) => setIncomeTypes(ticketData<IncomeType[]>(res) || []))
+      .catch(() => undefined);
+  }, []);
+
   const search = async (p = 0) => {
     try {
-      const res = await ticketApi.report(from, to, p, DEFAULT_PAGE_SIZE);
+      const res = await ticketApi.report(
+        from,
+        to,
+        p,
+        DEFAULT_PAGE_SIZE,
+        undefined,
+        undefined,
+        kind || undefined,
+        kind === 'TICKET' ? undefined : (incomeType || undefined),
+      );
       const pg = ticketPage<Row>(res);
       setRows(pg.items);
       setTotal(pg.total);
@@ -71,11 +98,28 @@ const TicketReportPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title no-print"><i className="fas fa-list" /> Ticket Report</h2>
+      <h2 className="mst-title no-print"><i className="fas fa-list" /> Income Report</h2>
       <div className="mst-card no-print" style={{ marginBottom: 12 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg"><label>From Date</label><input className="mst-inp" type="date" value={from} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="mst-fg"><label>To Date</label><input className="mst-inp" type="date" value={to} onChange={(e) => setTo(e.target.value)} /></div>
+          <div className="mst-fg">
+            <label>Type</label>
+            <select className="mst-sel" value={kind} onChange={(e) => { setKind(e.target.value); if (e.target.value === 'TICKET') setIncomeType(''); }}>
+              <option value="">All</option>
+              <option value="TICKET">Ticket Entry</option>
+              <option value="INCOME">Other Income</option>
+            </select>
+          </div>
+          <div className="mst-fg">
+            <label>Income Type</label>
+            <select className="mst-sel" value={incomeType} disabled={kind === 'TICKET'} onChange={(e) => setIncomeType(e.target.value)}>
+              <option value="">All</option>
+              {incomeTypes.map((type) => (
+                <option key={type.id} value={type.name}>{type.name}</option>
+              ))}
+            </select>
+          </div>
           <div className="mst-actions">
             <button className="mst-btn mst-btn-primary" type="button" onClick={() => search(0)}>Generate</button>
             <ReportActions
@@ -84,10 +128,11 @@ const TicketReportPage: React.FC = () => {
               sheets={[{
                 name: 'Tickets',
                 columns: [
+                  { key: 'kind', label: 'Type' },
                   { key: 'dateTime', label: 'Date' },
                   { key: 'customerName', label: 'Customer' },
                   { key: 'phone', label: 'Phone' },
-                  { key: 'route', label: 'Route' },
+                  { key: 'route', label: 'Details' },
                   { key: 'transport', label: 'Transport' },
                   { key: 'amount', label: 'Amount', num: true },
                   { key: 'cashPaid', label: 'Cash', num: true },
@@ -96,7 +141,7 @@ const TicketReportPage: React.FC = () => {
                   { key: 'credit', label: 'Credit', num: true },
                   { key: 'userName', label: 'Entry By' },
                 ],
-                rows: rows || [],
+                rows: (rows || []).map((row) => ({ ...row, kind: typeLabel(row) })),
               }]}
             />
           </div>
@@ -106,7 +151,7 @@ const TicketReportPage: React.FC = () => {
         <>
           <div className="crd-stats crd-stats-4" style={{ marginBottom: 12 }}>
             <div className="mst-card crd-stat">
-              <div className="crd-stat-l">Total Tickets</div>
+              <div className="crd-stat-l">Total Entries</div>
               <div className="crd-stat-v">{total}</div>
             </div>
             <div className="mst-card crd-stat">
@@ -128,21 +173,22 @@ const TicketReportPage: React.FC = () => {
               <table className="mst-table">
                 <thead>
                   <tr>
-                    <th>#</th><th>Date</th><th>Customer</th><th>Phone</th><th>Route</th>
+                    <th>#</th><th>Type</th><th>Date</th><th>Customer</th><th>Phone</th><th>Details</th>
                     <th>Transport</th><th className="num">Amount</th><th className="num">Cash</th>
                     <th className="num">GPay</th><th className="num">Card</th><th className="num">Credit</th><th>Entry By</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.length === 0 && <tr><td colSpan={12} className="mst-empty">No tickets found for the selected period.</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={13} className="mst-empty">No tickets or other income found for the selected period.</td></tr>}
                   {rows.map((row, i) => (
-                    <tr key={row.id} className="mst-click-row" title="View ticket details" onClick={() => openView(row)}>
+                    <tr key={row.id} className="mst-click-row" title="View details" onClick={() => openView(row)}>
                       <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
+                      <td>{typeLabel(row)}</td>
                       <td>{row.dateTime}</td>
                       <td>{row.customerName || '—'}</td>
                       <td>{row.phone || '—'}</td>
-                      <td>{row.route}</td>
-                      <td>{row.transport || '—'}</td>
+                      <td>{row.route || row.incomeTypeName || '—'}</td>
+                      <td>{isIncome(row) ? '—' : (row.transport || '—')}</td>
                       <td className="num">₹ {n(row.amount)}</td>
                       <td className="num">{n(row.cashPaid)}</td>
                       <td className="num">{n(row.gpayPaid)}</td>
@@ -163,17 +209,24 @@ const TicketReportPage: React.FC = () => {
         <div className="crd-modal no-print" onClick={() => setView(null)}>
           <div className="crd-modal-box" onClick={(e) => e.stopPropagation()}>
             <div className="crd-modal-h">
-              <h3 style={{ margin: 0, fontSize: 18 }}>Ticket #{view.id}{viewBusy ? ' …' : ''}</h3>
+              <h3 style={{ margin: 0, fontSize: 18 }}>{isIncome(view) ? 'Other Income' : 'Ticket'} #{view.id}{viewBusy ? ' …' : ''}</h3>
               <button className="mst-btn mst-btn-outline" type="button" onClick={() => setView(null)}>Close</button>
             </div>
             <div className="crd-modal-body mb-view-body">
+              <div className="mb-view-row"><span>Type</span><strong>{typeLabel(view)}</strong></div>
               <div className="mb-view-row"><span>Date</span><strong>{view.dateTime || '-'}</strong></div>
               <div className="mb-view-row"><span>Customer</span><strong>{view.customerName || 'Walk-in'}</strong></div>
               <div className="mb-view-row"><span>Phone</span><strong>{view.phone || '-'}</strong></div>
-              <div className="mb-view-row"><span>From</span><strong>{view.fromName || '-'}</strong></div>
-              <div className="mb-view-row"><span>To</span><strong>{view.toName || '-'}</strong></div>
-              <div className="mb-view-row"><span>Route</span><strong>{view.route || '-'}</strong></div>
-              <div className="mb-view-row"><span>Transport</span><strong>{view.transport || '-'}</strong></div>
+              {isIncome(view) ? (
+                <div className="mb-view-row"><span>Income Type</span><strong>{view.incomeTypeName || view.route || '-'}</strong></div>
+              ) : (
+                <>
+                  <div className="mb-view-row"><span>From</span><strong>{view.fromName || '-'}</strong></div>
+                  <div className="mb-view-row"><span>To</span><strong>{view.toName || '-'}</strong></div>
+                  <div className="mb-view-row"><span>Route</span><strong>{view.route || '-'}</strong></div>
+                  <div className="mb-view-row"><span>Transport</span><strong>{view.transport || '-'}</strong></div>
+                </>
+              )}
               <div className="mb-view-row"><span>Amount</span><strong>{inr(view.amount)}</strong></div>
               <div className="mb-view-row"><span>Cash</span><strong>{inr(view.cashPaid)}</strong></div>
               <div className="mb-view-row"><span>GPay</span><strong>{inr(view.gpayPaid)}</strong></div>

@@ -475,7 +475,7 @@ insert  into `user_modules`(`id`,`module_name`) values
 (1,'Dashboard'),
 (2,'Book Ticket Entry'),
 (3,'Customers Balance'),
-(4,'Ticket Report'),
+(4,'Income Report'),
 (5,'Expense'),
 (6,'Admin');
 

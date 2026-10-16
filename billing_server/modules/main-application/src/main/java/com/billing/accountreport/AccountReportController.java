@@ -3,7 +3,6 @@ package com.billing.accountreport;
 import com.billing.common.JdbcPageHelper;
 import com.billing.core.response.ResponseDO;
 import com.billing.security.PlatformSecurityContext;
-import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -12,12 +11,16 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequiredArgsConstructor
 @RequestMapping("/api/v1/account-reports")
 public class AccountReportController {
 
     private final AccountReportService accountReportService;
     private final PlatformSecurityContext securityContext;
+
+    public AccountReportController(AccountReportService accountReportService, PlatformSecurityContext securityContext) {
+        this.accountReportService = accountReportService;
+        this.securityContext = securityContext;
+    }
 
     @GetMapping("/sales")
     public ResponseDO sales(@RequestParam String from,

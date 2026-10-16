@@ -65,11 +65,11 @@ export const billingMenuConfig: MenuItemConfig[] = [
   },
   {
     id: 'ticket-report',
-    name: 'Ticket Report',
+    name: 'Income Report',
     icon: 'fas fa-file-alt',
     moduleId: MENU_MODULE.ticketReport,
     submenus: [
-      { id: 'ticket-list', name: 'Ticket Report', url: routerPathNames.ticket.report, icon: 'fas fa-list' },
+      { id: 'ticket-list', name: 'Income Report', url: routerPathNames.ticket.report, icon: 'fas fa-list' },
       { id: 'day-book', name: 'Day Book', url: routerPathNames.accountReports.dayBook, icon: 'fas fa-book' },
     ],
   },

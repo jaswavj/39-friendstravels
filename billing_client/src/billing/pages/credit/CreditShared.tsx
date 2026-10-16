@@ -445,7 +445,7 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                     account.timeline.map((row, i) => {
                       const type = (row.type || '').toUpperCase();
                       const pending = row.pending || 0;
-                      const hasPend = (type === 'BILL' || type === 'PURCHASE' || type === 'TICKET') && pending > 0.005;
+                      const hasPend = (type === 'BILL' || type === 'PURCHASE' || type === 'TICKET' || type === 'OTHER_INCOME') && pending > 0.005;
                       const rowClass =
                         type === 'RETURN' ? 'crd-row-return'
                           : type === 'OLD_DUE' ? 'crd-row-old'
@@ -455,13 +455,15 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                       const badge =
                         type === 'BILL' ? (hasPend ? 'bill-due' : 'bill')
                           : type === 'PURCHASE' ? (hasPend ? 'purchase-due' : 'purchase')
-                            : type === 'TICKET' ? (hasPend ? 'ticket-due' : 'ticket')
+                            : type === 'TICKET' || type === 'OTHER_INCOME' ? (hasPend ? 'ticket-due' : 'ticket')
                             : type === 'RETURN' ? 'return'
                               : type === 'OLD_DUE' ? 'old'
                                 : type === 'ADVANCE' ? 'adv' : 'col';
                       const label =
                         type === 'COLLECTION' && !isCustomer ? 'PAYMENT'
-                          : type.replace('_', ' ');
+                          : type === 'OTHER_INCOME' ? 'OTHER INCOME'
+                            : type === 'TICKET' ? 'TICKET ENTRY'
+                              : type.replace('_', ' ');
                       return (
                         <tr key={`${type}-${i}-${row.date}-${row.time}`} className={rowClass}>
                           <td>{i + 1}</td>

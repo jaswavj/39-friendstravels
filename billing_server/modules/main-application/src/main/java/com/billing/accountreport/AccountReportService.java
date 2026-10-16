@@ -26,6 +26,13 @@ public class AccountReportService {
                     + " OR (pl.bill_type = 11 AND EXISTS (SELECT 1 FROM daybook_opening_balance x WHERE x.id = pl.bill_id AND x.is_active = 1)) "
                     + " OR (pl.bill_type = 13 AND EXISTS (SELECT 1 FROM ticket_entry x WHERE x.id = pl.bill_id AND x.is_active = 1))) ";
 
+    private static final String LEDGER_TICKET_JOIN =
+            " LEFT JOIN ticket_entry te ON pl.bill_type = 13 AND te.id = pl.bill_id ";
+
+    private static final String LEDGER_CATEGORY =
+            "CASE WHEN pl.bill_type = 13 AND COALESCE(te.entry_kind, 'TICKET') = 'INCOME' THEN 'Other Income' "
+                    + "ELSE COALESCE(bt.type, CONCAT('Type ', pl.bill_type)) END";
+
     private final JdbcTemplate jdbcTemplate;
 
     public Map<String, Object> sales(String from, String to, Integer mode, Integer type, Long userId, Integer taxBill) {
@@ -293,41 +300,44 @@ public class AccountReportService {
         double bankOpening = ledgerBalanceBefore(fromDate, false);
 
         List<Map<String, Object>> cashBook = jdbcTemplate.query(
-                "SELECT COALESCE(bt.type, CONCAT('Type ', pl.bill_type)) AS category, "
+                "SELECT " + LEDGER_CATEGORY + " AS category, "
                         + "SUM(CASE WHEN pl.bill_type IN (1,2,3,8,11,13) THEN pl.cash_paid ELSE 0 END) AS cash_in, "
                         + "SUM(CASE WHEN pl.bill_type IN (5,6,7,9) THEN pl.cash_paid ELSE 0 END) AS cash_out "
                         + "FROM prod_ledger pl LEFT JOIN bill_type bt ON bt.id = pl.bill_type "
+                        + LEDGER_TICKET_JOIN
                         + "WHERE DATE(pl.date_time) BETWEEN ? AND ? AND " + PROD_LEDGER_VALID
-                        + " GROUP BY pl.bill_type, bt.type "
+                        + " GROUP BY category, pl.bill_type "
                         + "HAVING cash_in <> 0 OR cash_out <> 0 "
-                        + "ORDER BY CASE pl.bill_type WHEN 11 THEN 0 ELSE pl.bill_type END, pl.bill_type",
+                        + "ORDER BY CASE pl.bill_type WHEN 11 THEN 0 ELSE pl.bill_type END, category",
                 (rs, i) -> bookRow(rs.getString("category"), rs.getDouble("cash_in"), rs.getDouble("cash_out")),
                 fromDate, toDate
         );
         List<Map<String, Object>> bankBook = jdbcTemplate.query(
-                "SELECT COALESCE(bt.type, CONCAT('Type ', pl.bill_type)) AS category, "
+                "SELECT " + LEDGER_CATEGORY + " AS category, "
                         + "SUM(CASE WHEN pl.bill_type IN (1,2,3,8,11,13) THEN pl.bank_paid ELSE 0 END) AS bank_in, "
                         + "SUM(CASE WHEN pl.bill_type IN (5,6,7,9) THEN pl.bank_paid ELSE 0 END) AS bank_out "
                         + "FROM prod_ledger pl LEFT JOIN bill_type bt ON bt.id = pl.bill_type "
+                        + LEDGER_TICKET_JOIN
                         + "WHERE DATE(pl.date_time) BETWEEN ? AND ? AND " + PROD_LEDGER_VALID
-                        + " GROUP BY pl.bill_type, bt.type "
+                        + " GROUP BY category, pl.bill_type "
                         + "HAVING bank_in <> 0 OR bank_out <> 0 "
-                        + "ORDER BY CASE pl.bill_type WHEN 11 THEN 0 ELSE pl.bill_type END, pl.bill_type",
+                        + "ORDER BY CASE pl.bill_type WHEN 11 THEN 0 ELSE pl.bill_type END, category",
                 (rs, i) -> bookRow(rs.getString("category"), rs.getDouble("bank_in"), rs.getDouble("bank_out")),
                 fromDate, toDate
         );
         List<Map<String, Object>> detail = jdbcTemplate.query(
-                "SELECT COALESCE(bt.type, CONCAT('Type ', pl.bill_type)) AS category, "
+                "SELECT " + LEDGER_CATEGORY + " AS category, "
                         + "SUM(CASE WHEN pl.bill_type IN (1,2,3,5,6,7,9,11,13) THEN pl.cash_paid WHEN pl.bill_type = 8 THEN 0 ELSE 0 END) AS cash_amt, "
                         + "SUM(CASE WHEN pl.bill_type IN (1,5,13) THEN GREATEST(pl.bill_amount - pl.cash_paid - pl.bank_paid, 0) "
                         + "WHEN pl.bill_type IN (4,12) THEN pl.bill_amount WHEN pl.bill_type = 8 THEN -pl.bill_amount ELSE 0 END) AS credit_amt, "
                         + "SUM(CASE WHEN pl.bill_type IN (1,2,3,5,6,7,9,11,13) THEN pl.bank_paid WHEN pl.bill_type = 8 THEN 0 ELSE 0 END) AS bank_amt, "
                         + "SUM(CASE WHEN pl.bill_type = 8 THEN -pl.bill_amount ELSE pl.bill_amount END) AS total_amt "
                         + "FROM prod_ledger pl LEFT JOIN bill_type bt ON bt.id = pl.bill_type "
+                        + LEDGER_TICKET_JOIN
                         + "WHERE DATE(pl.date_time) BETWEEN ? AND ? AND " + PROD_LEDGER_VALID
-                        + " GROUP BY pl.bill_type, bt.type "
+                        + " GROUP BY category, pl.bill_type "
                         + "HAVING cash_amt <> 0 OR credit_amt <> 0 OR bank_amt <> 0 OR total_amt <> 0 "
-                        + "ORDER BY CASE pl.bill_type WHEN 11 THEN 0 ELSE pl.bill_type END, pl.bill_type",
+                        + "ORDER BY CASE pl.bill_type WHEN 11 THEN 0 ELSE pl.bill_type END, category",
                 (rs, i) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("category", nz(rs.getString("category")));
@@ -341,8 +351,10 @@ public class AccountReportService {
         );
         List<Map<String, Object>> sales = jdbcTemplate.query(
                 "SELECT DATE(t.entry_date_time) AS entry_date, "
-                        + "CONCAT(fp.name, ' → ', tp.name) AS route, "
-                        + "COALESCE(c.name, '-') AS customer_name, COALESCE(t.transport, '') AS transport, t.amount, "
+                        + "CASE WHEN COALESCE(t.entry_kind,'TICKET') = 'INCOME' THEN COALESCE(it.name, 'Other Income') "
+                        + "ELSE CONCAT(COALESCE(fp.name, ''), ' → ', COALESCE(tp.name, '')) END AS route, "
+                        + "COALESCE(c.name, '-') AS customer_name, "
+                        + "CASE WHEN COALESCE(t.entry_kind,'TICKET') = 'INCOME' THEN 'Other income' ELSE COALESCE(t.transport, '') END AS transport, t.amount, "
                         + "CASE WHEN t.credit_amount > 0 AND t.cash_paid = 0 AND t.gpay_paid = 0 AND t.card_paid = 0 THEN 'Credit' "
                         + "WHEN t.credit_amount > 0 THEN 'Part credit' "
                         + "WHEN t.gpay_paid > 0 AND t.card_paid > 0 THEN 'GPay & Card' "
@@ -350,8 +362,9 @@ public class AccountReportService {
                         + "WHEN t.card_paid > 0 AND t.cash_paid > 0 THEN 'Cash & Card' "
                         + "WHEN t.gpay_paid > 0 THEN 'GPay' WHEN t.card_paid > 0 THEN 'Card' ELSE 'Cash' END AS pay_type "
                         + "FROM ticket_entry t "
-                        + "JOIN ticket_place fp ON fp.id = t.from_place_id "
-                        + "JOIN ticket_place tp ON tp.id = t.to_place_id "
+                        + "LEFT JOIN ticket_place fp ON fp.id = t.from_place_id "
+                        + "LEFT JOIN ticket_place tp ON tp.id = t.to_place_id "
+                        + "LEFT JOIN income_type it ON it.id = t.income_type_id "
                         + "LEFT JOIN customers c ON c.id = t.customer_id "
                         + "WHERE t.is_active = 1 AND DATE(t.entry_date_time) BETWEEN ? AND ? "
                         + "ORDER BY t.entry_date_time, t.id",

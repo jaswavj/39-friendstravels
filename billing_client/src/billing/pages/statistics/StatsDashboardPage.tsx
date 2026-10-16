@@ -103,13 +103,10 @@ const StatsDashboardPage: React.FC = () => {
 
   const years = Array.from({ length: 6 }, (_, i) => now.getFullYear() + 1 - i);
   const daily = data?.daily || [];
-  const pieData = useMemo(() => {
-    if (!data) return [];
-    return [
-      { name: 'Tickets', value: Math.max(0, Number(data.sales || 0)), color: SALES },
-      { name: 'Expense', value: Math.max(0, Number(data.expense || 0)), color: EXPENSE },
-    ].filter((s) => s.value > 0);
-  }, [data]);
+  const pieData = !data ? [] : [
+    { name: 'Income', value: Math.max(0, Number(data.sales || 0)), color: SALES },
+    { name: 'Expense', value: Math.max(0, Number(data.expense || 0)), color: EXPENSE },
+  ].filter((s) => s.value > 0);
   const pieTotal = pieData.reduce((sum, s) => sum + s.value, 0);
   const chartDays = useMemo(() => daily.map((d) => ({
     ...d,
@@ -153,7 +150,7 @@ const StatsDashboardPage: React.FC = () => {
               <span className="st-kpi-art st-kpi-art-chart" aria-hidden />
               <i className="st-kpi-deco fas fa-ticket-alt" aria-hidden />
               <div className="st-kpi-body">
-                <div className="st-kpi-l">Total Sales</div>
+                <div className="st-kpi-l">Total Income</div>
                 <div className="st-kpi-v">₹ {n(data.sales)}</div>
                 <div className="st-kpi-t">{trend(data.salesPct, data.lastSales)}</div>
               </div>
@@ -177,10 +174,10 @@ const StatsDashboardPage: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="mst-note st-today">Today: ₹ {n(data.todaySales)} across {data.todayBills} tickets · Showing {data.label}</div>
+          <div className="mst-note st-today">Today: ₹ {n(data.todaySales)} across {data.todayBills} income · Showing {data.label}</div>
           <div className="st-charts">
             <div className="mst-card st-chart-card">
-              <div className="mst-card-h">Daily Tickets vs Expense — {data.label}</div>
+              <div className="mst-card-h">Daily Income vs Expense — {data.label}</div>
               <div className="mst-card-b st-chart-body">
                 {chartDays.length === 0 ? (
                   <div className="mst-empty">No days in this month.</div>
@@ -224,7 +221,7 @@ const StatsDashboardPage: React.FC = () => {
                           height={22}
                           wrapperStyle={{ fontSize: 11, paddingTop: 2 }}
                         />
-                        <Bar dataKey="sales" name="Tickets" fill="url(#salesBar)" radius={[4, 4, 0, 0]} maxBarSize={barMax} />
+                        <Bar dataKey="sales" name="Income" fill="url(#salesBar)" radius={[4, 4, 0, 0]} maxBarSize={barMax} />
                         <Bar dataKey="expense" name="Expense" fill="url(#expenseBar)" radius={[4, 4, 0, 0]} maxBarSize={barMax} />
                       </BarChart>
                     </ResponsiveContainer>
@@ -236,7 +233,7 @@ const StatsDashboardPage: React.FC = () => {
               <div className="mst-card-h">Month Mix — {data.label}</div>
               <div className="mst-card-b st-chart-body st-pie-wrap">
                 {pieTotal <= 0 ? (
-                  <div className="mst-empty">No tickets or expense in this month.</div>
+                  <div className="mst-empty">No income or expense in this month.</div>
                 ) : (
                   <>
                     <ResponsiveContainer width="100%" height={pieH}>

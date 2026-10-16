@@ -23,11 +23,20 @@ public class TicketSchema {
                         + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci"
         );
         jdbcTemplate.execute(
+                "CREATE TABLE IF NOT EXISTS income_type ("
+                        + "id int unsigned NOT NULL AUTO_INCREMENT,"
+                        + "name varchar(255) NOT NULL,"
+                        + "is_active int DEFAULT 1,"
+                        + "PRIMARY KEY (id),"
+                        + "UNIQUE KEY uq_income_type_name (name)"
+                        + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci"
+        );
+        jdbcTemplate.execute(
                 "CREATE TABLE IF NOT EXISTS ticket_entry ("
                         + "id int unsigned NOT NULL AUTO_INCREMENT,"
                         + "customer_id int unsigned NOT NULL,"
-                        + "from_place_id int unsigned NOT NULL,"
-                        + "to_place_id int unsigned NOT NULL,"
+                        + "from_place_id int unsigned NULL,"
+                        + "to_place_id int unsigned NULL,"
                         + "transport varchar(255) DEFAULT NULL,"
                         + "notes text,"
                         + "amount decimal(12,2) NOT NULL,"
@@ -38,11 +47,22 @@ public class TicketSchema {
                         + "entry_date_time datetime NOT NULL,"
                         + "uid int NOT NULL,"
                         + "is_active int DEFAULT 1,"
+                        + "entry_kind varchar(16) NOT NULL DEFAULT 'TICKET',"
+                        + "income_type_id int unsigned NULL,"
                         + "PRIMARY KEY (id),"
                         + "KEY idx_ticket_customer (customer_id),"
-                        + "KEY idx_ticket_date (entry_date_time)"
+                        + "KEY idx_ticket_date (entry_date_time),"
+                        + "KEY idx_ticket_kind (entry_kind),"
+                        + "KEY idx_ticket_income_type (income_type_id)"
                         + ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci"
         );
+        try {
+            jdbcTemplate.execute("ALTER TABLE ticket_entry MODIFY from_place_id int unsigned NULL");
+            jdbcTemplate.execute("ALTER TABLE ticket_entry MODIFY to_place_id int unsigned NULL");
+        } catch (Exception ignored) {
+        }
+        addColumn("ticket_entry", "entry_kind", "varchar(16) NOT NULL DEFAULT 'TICKET'");
+        addColumn("ticket_entry", "income_type_id", "int unsigned NULL");
         jdbcTemplate.execute(
                 "CREATE TABLE IF NOT EXISTS ticket_edit_log ("
                         + "id bigint NOT NULL AUTO_INCREMENT,"
@@ -77,7 +97,7 @@ public class TicketSchema {
         upsertModule(1, "Dashboard");
         upsertModule(2, "Book Ticket Entry");
         upsertModule(3, "Customers Balance");
-        upsertModule(4, "Ticket Report");
+        upsertModule(4, "Income Report");
         upsertModule(5, "Expense");
         jdbcTemplate.update(
                 "INSERT INTO user_permission (module_id, uid, date, time) "
@@ -121,6 +141,20 @@ public class TicketSchema {
         int updated = jdbcTemplate.update("UPDATE user_modules SET module_name = ? WHERE id = ?", name, id);
         if (updated == 0) {
             jdbcTemplate.update("INSERT INTO user_modules (id, module_name) VALUES (?, ?)", id, name);
+        }
+    }
+
+    private void addColumn(String table, String name, String definition) {
+        try {
+            Integer count = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                    Integer.class,
+                    table, name
+            );
+            if (count == null || count == 0) {
+                jdbcTemplate.execute("ALTER TABLE " + table + " ADD COLUMN " + name + " " + definition);
+            }
+        } catch (Exception ignored) {
         }
     }
 

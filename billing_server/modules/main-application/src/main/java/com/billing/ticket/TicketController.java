@@ -32,14 +32,21 @@ public class TicketController {
         return ok(ticketService.searchPlaces(q));
     }
 
+    @GetMapping("/income-types")
+    public ResponseDO searchIncomeTypes(@RequestParam(required = false) String q) {
+        return ok(ticketService.searchIncomeTypes(q));
+    }
+
     @GetMapping("/report")
     public ResponseDO report(@RequestParam String from,
                              @RequestParam String to,
                              @RequestParam(required = false) String customerName,
                              @RequestParam(required = false) String phone,
+                             @RequestParam(required = false) String kind,
+                             @RequestParam(required = false) String incomeType,
                              @RequestParam(defaultValue = "0") int page,
                              @RequestParam(defaultValue = "25") int size) {
-        return ok(ticketService.report(from, to, customerName, phone, page, size));
+        return ok(ticketService.report(from, to, customerName, phone, kind, incomeType, page, size));
     }
 
     @GetMapping("/entries/{id}")

@@ -12,6 +12,9 @@ public class TicketSaveRequest {
     private Long toPlaceId;
     private String toName;
     private String transport;
+    private String kind;
+    private Long incomeTypeId;
+    private String incomeTypeName;
     private String notes;
     private Double amount;
     private Double cashPaid;

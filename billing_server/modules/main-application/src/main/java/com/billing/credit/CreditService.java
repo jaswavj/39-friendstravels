@@ -121,19 +121,22 @@ public class CreditService {
                 "SELECT t.id, t.amount, t.cash_paid, t.gpay_paid, t.card_paid, t.credit_amount, "
                         + "DATE(t.entry_date_time) AS tdate, TIME(t.entry_date_time) AS ttime, "
                         + "COALESCE(u.user_name, '') AS user_name, fp.name AS from_name, tp.name AS to_name, "
-                        + "COALESCE(t.transport, '') AS transport, COALESCE(t.notes, '') AS notes "
+                        + "COALESCE(t.transport, '') AS transport, COALESCE(t.notes, '') AS notes, "
+                        + "COALESCE(t.entry_kind, 'TICKET') AS kind, COALESCE(it.name, '') AS income_type "
                         + "FROM ticket_entry t "
-                        + "JOIN ticket_place fp ON fp.id = t.from_place_id "
-                        + "JOIN ticket_place tp ON tp.id = t.to_place_id "
+                        + "LEFT JOIN ticket_place fp ON fp.id = t.from_place_id "
+                        + "LEFT JOIN ticket_place tp ON tp.id = t.to_place_id "
+                        + "LEFT JOIN income_type it ON it.id = t.income_type_id "
                         + "LEFT JOIN users u ON u.id = t.uid "
                         + "WHERE t.customer_id = ? AND t.is_active = 1 ORDER BY t.id DESC",
                 (rs, i) -> {
-                    String route = nz(rs.getString("from_name")) + " → " + nz(rs.getString("to_name"));
-                    String transport = nz(rs.getString("transport"));
+                    boolean income = "INCOME".equalsIgnoreCase(nz(rs.getString("kind")));
+                    String route = income ? nz(rs.getString("income_type")) : nz(rs.getString("from_name")) + " → " + nz(rs.getString("to_name"));
+                    String transport = income ? "Other income" : nz(rs.getString("transport"));
                     String note = nz(rs.getString("notes"));
                     String extra = transport.isEmpty() ? note : note.isEmpty() ? transport : transport + " · " + note;
                     TimelineRow row = new TimelineRow();
-                    row.setType("TICKET");
+                    row.setType(income ? "OTHER_INCOME" : "TICKET");
                     row.setDocNo(route);
                     row.setAmount(rs.getDouble("amount"));
                     row.setPaid(rs.getDouble("cash_paid") + rs.getDouble("gpay_paid") + rs.getDouble("card_paid"));

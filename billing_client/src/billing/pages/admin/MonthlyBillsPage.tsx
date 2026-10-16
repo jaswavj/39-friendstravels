@@ -18,6 +18,8 @@ type Card = {
   toName?: string;
   transport: string;
   notes?: string;
+  kind?: string;
+  incomeTypeName?: string;
   amount: number;
   cashPaid: number;
   gpayPaid: number;
@@ -179,14 +181,15 @@ const MonthlyBillsPage: React.FC = () => {
                   <p className="mb-meta">
                     {card.dateTime}
                     {card.phone ? ` · ${card.phone}` : ''}
-                    {card.transport ? ` · ${card.transport}` : ''}
+                    {card.kind === 'INCOME' ? '' : (card.transport ? ` · ${card.transport}` : '')}
                   </p>
-                  <div className="mb-chips">
-                    <span className="mb-chip">{payLabel(card)}</span>
-                    {Number(card.credit) > 0 && <span className="mb-chip ret">Credit {inr(card.credit)}</span>}
-                  </div>
                 </div>
                 <div className="mb-amt">{inr(card.amount)}</div>
+                <div className="mb-chips">
+                  <span className="mb-chip">{card.kind === 'INCOME' || card.incomeTypeName ? 'Other Income' : 'Ticket Entry'}</span>
+                  <span className="mb-chip">{payLabel(card)}</span>
+                  {Number(card.credit) > 0 && <span className="mb-chip ret">Credit {inr(card.credit)}</span>}
+                </div>
               </div>
               <div className="mb-actions mb-actions-3">
                 <button className="mb-act" type="button" disabled={viewBusy} onClick={() => openView(card.id)}>
@@ -216,9 +219,16 @@ const MonthlyBillsPage: React.FC = () => {
               <div className="mb-view-row"><span>Date</span><strong>{view.dateTime}</strong></div>
               <div className="mb-view-row"><span>Customer</span><strong>{view.customerName || 'Walk-in'}</strong></div>
               <div className="mb-view-row"><span>Phone</span><strong>{view.phone || '-'}</strong></div>
-              <div className="mb-view-row"><span>From</span><strong>{view.fromName || view.route}</strong></div>
-              <div className="mb-view-row"><span>To</span><strong>{view.toName || '-'}</strong></div>
-              <div className="mb-view-row"><span>Transport</span><strong>{view.transport || '-'}</strong></div>
+              <div className="mb-view-row"><span>Type</span><strong>{view.kind === 'INCOME' || view.incomeTypeName ? 'Other Income' : 'Ticket Entry'}</strong></div>
+              {view.kind === 'INCOME' ? (
+                <div className="mb-view-row"><span>Income Type</span><strong>{view.incomeTypeName || view.route || '-'}</strong></div>
+              ) : (
+                <>
+                  <div className="mb-view-row"><span>From</span><strong>{view.fromName || view.route}</strong></div>
+                  <div className="mb-view-row"><span>To</span><strong>{view.toName || '-'}</strong></div>
+                  <div className="mb-view-row"><span>Transport</span><strong>{view.transport || '-'}</strong></div>
+                </>
+              )}
               <div className="mb-view-row"><span>Amount</span><strong>{inr(view.amount)}</strong></div>
               <div className="mb-view-row"><span>Cash</span><strong>{inr(view.cashPaid)}</strong></div>
               <div className="mb-view-row"><span>GPay</span><strong>{inr(view.gpayPaid)}</strong></div>

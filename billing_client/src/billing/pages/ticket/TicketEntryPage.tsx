@@ -20,8 +20,11 @@ const num = (v: string) => {
   return Number.isFinite(n) ? n : 0;
 };
 
+type Kind = 'TICKET' | 'INCOME';
+
 type TicketDetail = {
   id: number;
+  kind?: Kind;
   customerId: number;
   customerName: string;
   phone: string;
@@ -29,6 +32,8 @@ type TicketDetail = {
   fromName: string;
   toPlaceId: number;
   toName: string;
+  incomeTypeId?: number;
+  incomeTypeName?: string;
   transport: string;
   notes: string;
   amount: number;
@@ -40,7 +45,8 @@ type TicketDetail = {
   entryTime: string;
 };
 
-const emptyForm = () => ({
+const emptyForm = (kind: Kind = 'TICKET') => ({
+  kind,
   customerId: 0,
   customerName: '',
   phone: '',
@@ -48,6 +54,8 @@ const emptyForm = () => ({
   fromName: '',
   toId: 0,
   toName: '',
+  incomeTypeId: 0,
+  incomeTypeName: '',
   transport: '',
   notes: '',
   amount: '',
@@ -60,6 +68,7 @@ const emptyForm = () => ({
 });
 
 const formFromTicket = (t: TicketDetail) => ({
+  kind: (t.kind === 'INCOME' ? 'INCOME' : 'TICKET') as Kind,
   customerId: Number(t.customerId || 0),
   customerName: t.customerName || '',
   phone: t.phone || '',
@@ -67,6 +76,8 @@ const formFromTicket = (t: TicketDetail) => ({
   fromName: t.fromName || '',
   toId: Number(t.toPlaceId || 0),
   toName: t.toName || '',
+  incomeTypeId: Number(t.incomeTypeId || 0),
+  incomeTypeName: t.incomeTypeName || '',
   transport: t.transport || '',
   notes: t.notes || '',
   amount: n2(Number(t.amount || 0)),
@@ -89,11 +100,13 @@ const TicketEntryPage: React.FC = () => {
   const [loading, setLoading] = useState(editing);
   const [custHits, setCustHits] = useState<CustomerHit[]>([]);
   const [placeHits, setPlaceHits] = useState<PlaceHit[]>([]);
-  const [open, setOpen] = useState<'name' | 'phone' | 'from' | 'to' | null>(null);
+  const [incomeHits, setIncomeHits] = useState<PlaceHit[]>([]);
+  const [open, setOpen] = useState<'name' | 'phone' | 'from' | 'to' | 'income' | null>(null);
   const [active, setActive] = useState(0);
   const timer = useRef<number | null>(null);
   const seq = useRef(0);
   const original = useRef(emptyForm());
+  const income = form.kind === 'INCOME';
 
   useEffect(() => () => {
     if (timer.current) window.clearTimeout(timer.current);
@@ -186,6 +199,50 @@ const TicketEntryPage: React.FC = () => {
       : { ...f, toId: hit.id, toName: hit.name });
     setOpen(null);
     setPlaceHits([]);
+  };
+
+  const pickIncomeType = (hit: PlaceHit) => {
+    setForm((f) => ({ ...f, incomeTypeId: hit.id, incomeTypeName: hit.name }));
+    setOpen(null);
+    setIncomeHits([]);
+  };
+
+  const switchKind = (kind: Kind) => {
+    if (editing) return;
+    setForm((f) => ({
+      ...emptyForm(kind),
+      customerId: f.customerId,
+      customerName: f.customerName,
+      phone: f.phone,
+      entryDate: f.entryDate,
+      entryTime: f.entryTime,
+    }));
+    setOpen(null);
+    setPlaceHits([]);
+    setIncomeHits([]);
+  };
+
+  const searchIncomeTypes = (value: string) => {
+    setOpen('income');
+    setActive(0);
+    if (timer.current) window.clearTimeout(timer.current);
+    const q = value.trim();
+    if (!q) {
+      setIncomeHits([]);
+      return;
+    }
+    const id = ++seq.current;
+    timer.current = window.setTimeout(async () => {
+      try {
+        const res = await ticketApi.searchIncomeTypes(q);
+        if (id !== seq.current) return;
+        setIncomeHits(ticketData<PlaceHit[]>(res) || []);
+      } catch (err) {
+        if (id !== seq.current) return;
+        setIncomeHits([]);
+        toast.error(ticketError(err, 'Income type search failed'));
+      }
+    }, 250);
   };
 
   const onAmount = (value: string) => {
@@ -297,31 +354,41 @@ const TicketEntryPage: React.FC = () => {
       toast.warning('Customer name is required');
       return;
     }
-    if (!form.fromName.trim() || !form.toName.trim()) {
-      toast.warning('From and To are required');
-      return;
-    }
-    if (!form.transport.trim()) {
-      toast.warning('Transport is required');
-      return;
+    if (income) {
+      if (!form.incomeTypeName.trim()) {
+        toast.warning('Income type is required');
+        return;
+      }
+    } else {
+      if (!form.fromName.trim() || !form.toName.trim()) {
+        toast.warning('From and To are required');
+        return;
+      }
+      if (!form.transport.trim()) {
+        toast.warning('Transport is required');
+        return;
+      }
     }
     if (amount <= 0) {
-      toast.warning('Please enter a valid ticket amount');
+      toast.warning(income ? 'Please enter a valid income amount' : 'Please enter a valid ticket amount');
       return;
     }
     if (!balanced) {
-      toast.error('Cash + GPay + Card + Credit must equal the ticket amount');
+      toast.error('Cash + GPay + Card + Credit must equal the amount');
       return;
     }
     const payload = {
+      kind: form.kind,
       customerId: form.customerId || undefined,
       customerName: form.customerName.trim(),
       phone: form.phone.trim(),
-      fromPlaceId: form.fromId || undefined,
-      fromName: form.fromName.trim(),
-      toPlaceId: form.toId || undefined,
-      toName: form.toName.trim(),
-      transport: form.transport.trim(),
+      fromPlaceId: income ? undefined : (form.fromId || undefined),
+      fromName: income ? '' : form.fromName.trim(),
+      toPlaceId: income ? undefined : (form.toId || undefined),
+      toName: income ? '' : form.toName.trim(),
+      transport: income ? '' : form.transport.trim(),
+      incomeTypeId: income ? (form.incomeTypeId || undefined) : undefined,
+      incomeTypeName: income ? form.incomeTypeName.trim() : '',
       notes: form.notes.trim(),
       amount,
       cashPaid: cash,
@@ -338,17 +405,17 @@ const TicketEntryPage: React.FC = () => {
       );
       if (editing) {
         toast.success(credit > 0
-          ? `Ticket updated. Credit ₹${n2(credit)}. Customer balance ₹${n2(saved.balance)}`
-          : 'Ticket updated');
+          ? `${income ? 'Income' : 'Ticket'} updated. Credit ₹${n2(credit)}. Customer balance ₹${n2(saved.balance)}`
+          : `${income ? 'Income' : 'Ticket'} updated`);
         navigate(routerPathNames.admin.monthlyBills);
         return;
       }
       if (credit > 0) {
-        toast.success(`Ticket saved. Credit ₹${n2(credit)} added. Customer balance ₹${n2(saved.balance)}`);
+        toast.success(`${income ? 'Income' : 'Ticket'} saved. Credit ₹${n2(credit)} added. Customer balance ₹${n2(saved.balance)}`);
       } else {
-        toast.success('Ticket saved');
+        toast.success(income ? 'Income saved' : 'Ticket saved');
       }
-      setForm(emptyForm());
+      setForm(emptyForm(form.kind));
       setOpen(null);
     } catch (err) {
       toast.error(ticketError(err, editing ? 'Could not update ticket' : 'Could not save ticket'));
@@ -363,9 +430,15 @@ const TicketEntryPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-ticket-alt" /> {editing ? 'Edit Ticket' : 'Ticket Entry'}</h2>
+      <h2 className="mst-title"><i className="fas fa-ticket-alt" /> {editing ? (income ? 'Edit Other Income' : 'Edit Ticket') : 'Ticket Entry'}</h2>
+      {!editing && (
+        <div className="mst-tabs" style={{ maxWidth: 920 }}>
+          <button className={`mst-tab${income ? '' : ' active'}`} type="button" onClick={() => switchKind('TICKET')}>Book Ticket</button>
+          <button className={`mst-tab${income ? ' active' : ''}`} type="button" onClick={() => switchKind('INCOME')}>Other Income</button>
+        </div>
+      )}
       <div className="mst-card" style={{ maxWidth: 920 }}>
-        <div className="mst-card-h">{editing ? `Ticket #${ticketId}` : 'Book Ticket'}</div>
+        <div className="mst-card-h">{editing ? `${income ? 'Income' : 'Ticket'} #${ticketId}` : (income ? 'Other Income' : 'Book Ticket')}</div>
         <form className="mst-card-b mst-form" onSubmit={onSubmit}>
           <div className="mst-fg">
             <label>Customer Name <span className="req">*</span></label>
@@ -427,6 +500,38 @@ const TicketEntryPage: React.FC = () => {
               )}
             </div>
           </div>
+          {income ? (
+          <div className="mst-fg" style={{ gridColumn: '1 / -1' }}>
+            <label>Income Type <span className="req">*</span></label>
+            <div className="crd-search-wrap">
+              <input
+                className="mst-inp"
+                value={form.incomeTypeName}
+                autoComplete="off"
+                placeholder="Type income type"
+                onChange={(e) => {
+                  setForm((f) => ({ ...f, incomeTypeName: e.target.value, incomeTypeId: 0 }));
+                  searchIncomeTypes(e.target.value);
+                }}
+                onFocus={() => form.incomeTypeName.trim() && searchIncomeTypes(form.incomeTypeName)}
+                onBlur={() => window.setTimeout(() => setOpen((cur) => (cur === 'income' ? null : cur)), 160)}
+                onKeyDown={onKey(incomeHits.length, (i) => incomeHits[i] && pickIncomeType(incomeHits[i]))}
+              />
+              {open === 'income' && (
+                <ul className="crd-dropdown">
+                  {incomeHits.length === 0 ? (
+                    <li className="muted">{form.incomeTypeName.trim() ? 'New income type — will be saved' : 'Type to search'}</li>
+                  ) : incomeHits.map((h, i) => (
+                    <li key={h.id} style={{ background: i === active ? 'color-mix(in srgb, var(--color-primary) 10%, transparent)' : undefined }} onMouseDown={(e) => { e.preventDefault(); pickIncomeType(h); }}>
+                      {h.name}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+          ) : (
+          <>
           <div className="mst-fg">
             <label>From <span className="req">*</span></label>
             <div className="crd-search-wrap">
@@ -489,8 +594,10 @@ const TicketEntryPage: React.FC = () => {
             <label>Transport <span className="req">*</span></label>
             <input className="mst-inp" value={form.transport} onChange={(e) => setForm({ ...form, transport: e.target.value })} placeholder="Bus, train, or vehicle" />
           </div>
+          </>
+          )}
           <div className="mst-fg">
-            <label>Ticket Amount <span className="req">*</span></label>
+            <label>{income ? 'Income Amount' : 'Ticket Amount'} <span className="req">*</span></label>
             <input className="mst-inp" type="number" min="0" step="0.01" value={form.amount} onChange={(e) => onAmount(e.target.value)} placeholder="0.00" />
           </div>
           <div className="mst-fg" style={{ gridColumn: '1 / -1' }}>
@@ -507,7 +614,7 @@ const TicketEntryPage: React.FC = () => {
           </div>
           <div className="mst-fg" style={{ gridColumn: '1 / -1' }}>
             <div className="mst-note" style={{ marginBottom: 0 }}>
-              <i className="fas fa-money-bill-wave" /> Cash + GPay + Card + Credit must equal the ticket amount. Credit is added to the customer account and collected in Credit Management.
+              <i className="fas fa-money-bill-wave" /> Cash + GPay + Card + Credit must equal the {income ? 'income' : 'ticket'} amount. Credit is added to the customer account and collected in Credit Management.
             </div>
           </div>
           <div className="mst-fg">
@@ -529,7 +636,7 @@ const TicketEntryPage: React.FC = () => {
           <div className="mst-fg" style={{ gridColumn: '1 / -1' }}>
             <div style={{ fontWeight: 700, color: balanced ? '#15803d' : '#b91c1c' }}>
               Cash {n2(cash)} + GPay {n2(gpay)} + Card {n2(card)} + Credit {n2(credit)} = {n2(paidSum)}
-              {amount > 0 ? ` / Ticket ${n2(amount)}` : ''}
+              {amount > 0 ? ` / ${income ? 'Income' : 'Ticket'} ${n2(amount)}` : ''}
               {amount > 0 && !balanced ? ` · difference ${n2(paidSum - amount)}` : ''}
             </div>
           </div>
@@ -539,11 +646,11 @@ const TicketEntryPage: React.FC = () => {
                 Back
               </button>
             )}
-            <button className="mst-btn mst-btn-outline" type="button" onClick={() => { setForm(editing ? original.current : emptyForm()); setOpen(null); }}>
+            <button className="mst-btn mst-btn-outline" type="button" onClick={() => { setForm(editing ? original.current : emptyForm(form.kind)); setOpen(null); }}>
               Reset
             </button>
             <button className="mst-btn mst-btn-primary" type="submit" disabled={busy}>
-              {busy ? (editing ? 'Updating…' : 'Saving…') : (editing ? 'Update Ticket' : 'Save Ticket')}
+              {busy ? (editing ? 'Updating…' : 'Saving…') : (editing ? (income ? 'Update Income' : 'Update Ticket') : (income ? 'Save Income' : 'Save Ticket'))}
             </button>
           </div>
         </form>

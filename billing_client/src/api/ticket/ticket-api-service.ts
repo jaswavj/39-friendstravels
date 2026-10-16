@@ -14,6 +14,8 @@ export class TicketApiService {
 
   searchPlaces = (q: string) => this.http.get(`/v1/ticket/places?q=${encodeURIComponent(q)}`);
 
+  searchIncomeTypes = (q: string) => this.http.get(`/v1/ticket/income-types?q=${encodeURIComponent(q)}`);
+
   save = (payload: any) => this.http.post('/v1/ticket/entries', payload);
 
   get = (id: number) => this.http.get(`/v1/ticket/entries/${id}`);
@@ -24,12 +26,14 @@ export class TicketApiService {
 
   cancel = (id: number, reason: string) => this.http.post(`/v1/ticket/entries/${id}/cancel`, { reason });
 
-  report = (from: string, to: string, page = 0, size = 25, customerName?: string, phone?: string) => {
+  report = (from: string, to: string, page = 0, size = 25, customerName?: string, phone?: string, kind?: string, incomeType?: string) => {
     const params = new URLSearchParams();
     params.set('from', from);
     params.set('to', to);
     if (customerName?.trim()) params.set('customerName', customerName.trim());
     if (phone?.trim()) params.set('phone', phone.trim());
+    if (kind?.trim()) params.set('kind', kind.trim());
+    if (incomeType?.trim()) params.set('incomeType', incomeType.trim());
     return this.http.get(`/v1/ticket/report?${params.toString()}&${pageQuery(page, size)}`);
   };
 }

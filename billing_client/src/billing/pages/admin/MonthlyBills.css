@@ -19,8 +19,9 @@
 }
 
 .mb-card-body {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
   gap: 10px;
   padding: 14px 14px 10px;
 }
@@ -50,18 +51,22 @@
 }
 
 .mb-chips {
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
-  margin-top: 10px;
+  margin-top: 2px;
 }
 
 .mb-chip {
   display: inline-flex;
   align-items: center;
-  padding: 3px 10px;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: 2px 8px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 650;
   background: #f1f5f9;
   color: #475569;
@@ -202,7 +207,7 @@
   }
 
   .mb-card-body {
-    flex-direction: column;
+    grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
   }
 
