@@ -133,12 +133,9 @@ CREATE TABLE `customer_account` (
   `balance` decimal(10,2) NOT NULL DEFAULT '0.00',
   PRIMARY KEY (`id`),
   UNIQUE KEY `customer_id` (`customer_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `customer_account` */
-
-insert  into `customer_account`(`id`,`customer_id`,`advance`,`balance`) values 
-(1,1,0.00,0.00);
 
 /*Table structure for table `customers` */
 
@@ -161,12 +158,9 @@ CREATE TABLE `customers` (
   `local` int DEFAULT '1',
   `exchange_point` double(10,3) DEFAULT '0.000',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `customers` */
-
-insert  into `customers`(`id`,`name`,`phone_number`,`address`,`date`,`time`,`is_eligible_for_commission`,`is_active`,`gstin`,`is_gst`,`salesman`,`area`,`credit_limit`,`local`,`exchange_point`) values 
-(1,'jaswa','8667214152','','2026-10-15','16:49:05',0,1,'',0,NULL,NULL,0.00,1,0.000);
 
 /*Table structure for table `daybook_opening_balance` */
 
@@ -204,12 +198,9 @@ CREATE TABLE `expense_entry` (
   `uid` int NOT NULL,
   PRIMARY KEY (`id`),
   KEY `type` (`exp_type`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `expense_entry` */
-
-insert  into `expense_entry`(`id`,`exp_type`,`content`,`amount`,`description`,`exc_date_time`,`entry_date_time`,`is_active`,`uid`) values 
-(1,1,'q',100.00,'','2026-10-15 17:28:00','2026-10-15 17:28:42',1,1);
 
 /*Table structure for table `expense_type` */
 
@@ -220,12 +211,9 @@ CREATE TABLE `expense_type` (
   `type` varchar(255) NOT NULL,
   `is_active` int DEFAULT '1',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `expense_type` */
-
-insert  into `expense_type`(`id`,`type`,`is_active`) values 
-(1,'Tea',1);
 
 /*Table structure for table `gstin` */
 
@@ -257,7 +245,24 @@ CREATE TABLE `heading` (
 /*Data for the table `heading` */
 
 insert  into `heading`(`id`,`head1`,`head2`,`head3`,`active`,`starting_date`) values 
-(1,'Category','Brand','Product',10,'2026-10-11');
+(1,'Category','Brand','Product',5,'2026-10-11');
+
+/*Table structure for table `income_type` */
+
+DROP TABLE IF EXISTS `income_type`;
+
+CREATE TABLE `income_type` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `is_active` int DEFAULT '1',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_income_type_name` (`name`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `income_type` */
+
+insert  into `income_type`(`id`,`name`,`is_active`) values 
+(1,'int',1);
 
 /*Table structure for table `prod_bill_due` */
 
@@ -368,7 +373,7 @@ CREATE TABLE `prod_ledger` (
   KEY `idx_customer` (`customer_id`),
   KEY `idx_supplier` (`supplier_id`),
   KEY `idx_date_time` (`date_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `prod_ledger` */
 
@@ -402,15 +407,9 @@ CREATE TABLE `ticket_edit_log` (
   `time` time DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_ticket_edit_date` (`date`)
-) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ticket_edit_log` */
-
-insert  into `ticket_edit_log`(`id`,`ticket_id`,`doc_no`,`action`,`details`,`uid`,`date`,`time`) values 
-(1,1,'Tuticorin → Chennai','EDIT','Cash ₹0.00 → ₹500.00 · Credit ₹1500.00 → ₹1000.00',1,'2026-10-15','17:32:52'),
-(2,1,'Chennai → Tuticorin','CREATE','Amount ₹2000.00 · Credit ₹1000.00',1,'2026-10-15','17:36:47'),
-(3,1,'Chennai → Tuticorin','EDIT','Cash ₹1000.00 → ₹1500.00 · Credit ₹1000.00 → ₹500.00',1,'2026-10-15','17:37:33'),
-(4,1,'Chennai → Tuticorin','CANCEL','Cancelled · Amount ₹2000.00 · Credit reversed ₹500.00 · Reason: a',1,'2026-10-15','17:40:13');
 
 /*Table structure for table `ticket_entry` */
 
@@ -419,8 +418,8 @@ DROP TABLE IF EXISTS `ticket_entry`;
 CREATE TABLE `ticket_entry` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `customer_id` int unsigned NOT NULL,
-  `from_place_id` int unsigned NOT NULL,
-  `to_place_id` int unsigned NOT NULL,
+  `from_place_id` int unsigned DEFAULT NULL,
+  `to_place_id` int unsigned DEFAULT NULL,
   `transport` varchar(255) DEFAULT NULL,
   `notes` text,
   `amount` decimal(12,2) NOT NULL,
@@ -431,15 +430,14 @@ CREATE TABLE `ticket_entry` (
   `entry_date_time` datetime NOT NULL,
   `uid` int NOT NULL,
   `is_active` int DEFAULT '1',
+  `entry_kind` varchar(16) NOT NULL DEFAULT 'TICKET',
+  `income_type_id` int unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_ticket_customer` (`customer_id`),
   KEY `idx_ticket_date` (`entry_date_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ticket_entry` */
-
-insert  into `ticket_entry`(`id`,`customer_id`,`from_place_id`,`to_place_id`,`transport`,`notes`,`amount`,`cash_paid`,`gpay_paid`,`card_paid`,`credit_amount`,`entry_date_time`,`uid`,`is_active`) values 
-(1,1,2,1,'bus','d',2000.00,1500.00,0.00,0.00,500.00,'2026-10-15 17:36:00',1,0);
 
 /*Table structure for table `ticket_place` */
 
@@ -451,13 +449,9 @@ CREATE TABLE `ticket_place` (
   `is_active` int DEFAULT '1',
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_ticket_place_name` (`name`)
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `ticket_place` */
-
-insert  into `ticket_place`(`id`,`name`,`is_active`) values 
-(1,'Tuticorin',1),
-(2,'Chennai',1);
 
 /*Table structure for table `user_modules` */
 
