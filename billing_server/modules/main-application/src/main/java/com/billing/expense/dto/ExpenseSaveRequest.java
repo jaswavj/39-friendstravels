@@ -7,6 +7,9 @@ public class ExpenseSaveRequest {
     private Long expenseType;
     private String content;
     private String description;
+    private Double qty;
+    private String busName;
+    private String area;
     private Double amount;
     private String expenseDate;
     private String expenseTime;

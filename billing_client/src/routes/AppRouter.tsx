@@ -31,6 +31,7 @@ const ExpenseEntryPage = lazy(() => import('../billing/pages/expense/ExpenseEntr
 const ExpenseReportPage = lazy(() => import('../billing/pages/expense/ExpenseReportPage'));
 const TicketEntryPage = lazy(() => import('../billing/pages/ticket/TicketEntryPage'));
 const TicketReportPage = lazy(() => import('../billing/pages/ticket/TicketReportPage'));
+const TicketBookingReportPage = lazy(() => import('../billing/pages/ticket/TicketBookingReportPage'));
 const DayBookPage = lazy(() => import('../billing/pages/account-reports/DayBookPage'));
 
 const guard = (element: ReactElement) => <AuthGuard component={element} />;
@@ -72,6 +73,7 @@ const AppRouter = () => {
               <Route path="expense/report" element={<ExpenseReportPage />} />
               <Route path="ticket/entry" element={<TicketEntryPage />} />
               <Route path="ticket/report" element={<TicketReportPage />} />
+              <Route path="ticket/booking-report" element={<TicketBookingReportPage />} />
               </Route>
               <Route index element={<DefaultAppRedirect />} />
             </Route>

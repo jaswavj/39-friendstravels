@@ -45,10 +45,14 @@ public class TicketSchema {
                         + "card_paid decimal(12,2) NOT NULL DEFAULT 0.00,"
                         + "credit_amount decimal(12,2) NOT NULL DEFAULT 0.00,"
                         + "entry_date_time datetime NOT NULL,"
+                        + "actual_date_time datetime NULL,"
                         + "uid int NOT NULL,"
                         + "is_active int DEFAULT 1,"
                         + "entry_kind varchar(16) NOT NULL DEFAULT 'TICKET',"
                         + "income_type_id int unsigned NULL,"
+                        + "qty decimal(12,2) NOT NULL DEFAULT 0.00,"
+                        + "bus_name varchar(255) DEFAULT NULL,"
+                        + "area varchar(255) DEFAULT NULL,"
                         + "PRIMARY KEY (id),"
                         + "KEY idx_ticket_customer (customer_id),"
                         + "KEY idx_ticket_date (entry_date_time),"
@@ -63,6 +67,17 @@ public class TicketSchema {
         }
         addColumn("ticket_entry", "entry_kind", "varchar(16) NOT NULL DEFAULT 'TICKET'");
         addColumn("ticket_entry", "income_type_id", "int unsigned NULL");
+        addColumn("ticket_entry", "qty", "decimal(12,2) NOT NULL DEFAULT 0.00");
+        addColumn("ticket_entry", "bus_name", "varchar(255) DEFAULT NULL");
+        addColumn("ticket_entry", "area", "varchar(255) DEFAULT NULL");
+        addColumn("expense_entry", "qty", "decimal(12,2) NOT NULL DEFAULT 0.00");
+        addColumn("expense_entry", "bus_name", "varchar(255) DEFAULT NULL");
+        addColumn("expense_entry", "area", "varchar(255) DEFAULT NULL");
+        addColumn("ticket_entry", "actual_date_time", "datetime NULL");
+        try {
+            jdbcTemplate.update("UPDATE ticket_entry SET actual_date_time = entry_date_time WHERE actual_date_time IS NULL");
+        } catch (Exception ignored) {
+        }
         jdbcTemplate.execute(
                 "CREATE TABLE IF NOT EXISTS ticket_edit_log ("
                         + "id bigint NOT NULL AUTO_INCREMENT,"

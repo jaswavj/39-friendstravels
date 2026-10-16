@@ -64,8 +64,7 @@ public class CORSFilter implements Filter {
         if (origin == null) {
             return false;
         }
-        if (Boolean.TRUE.equals(corsProperties.getAllowLocalhost()) &&
-                (origin.startsWith("http://localhost") || origin.startsWith("http://127.0.0.1"))) {
+        if (Boolean.TRUE.equals(corsProperties.getAllowLocalhost()) && isPrivateOrLocalOrigin(origin)) {
             return true;
         }
         String pattern = corsProperties.getLocalNetworkPattern();
@@ -73,5 +72,14 @@ public class CORSFilter implements Filter {
             return origin.matches(pattern);
         }
         return false;
+    }
+
+    /** localhost plus private LAN (192.168/10/172.16-31) so other PCs can use this server's IP. */
+    private boolean isPrivateOrLocalOrigin(String origin) {
+        return origin.matches(
+                "https?://(localhost|127\\.0\\.0\\.1|192\\.168\\.\\d{1,3}\\.\\d{1,3}"
+                        + "|10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"
+                        + "|172\\.(1[6-9]|2\\d|3[0-1])\\.\\d{1,3}\\.\\d{1,3})(:\\d+)?"
+        );
     }
 }

@@ -350,7 +350,7 @@ public class AccountReportService {
                 fromDate, toDate
         );
         List<Map<String, Object>> sales = jdbcTemplate.query(
-                "SELECT DATE(t.entry_date_time) AS entry_date, "
+                "SELECT DATE(COALESCE(t.actual_date_time, t.entry_date_time)) AS entry_date, "
                         + "CASE WHEN COALESCE(t.entry_kind,'TICKET') = 'INCOME' THEN COALESCE(it.name, 'Other Income') "
                         + "ELSE CONCAT(COALESCE(fp.name, ''), ' → ', COALESCE(tp.name, '')) END AS route, "
                         + "COALESCE(c.name, '-') AS customer_name, "
@@ -366,8 +366,8 @@ public class AccountReportService {
                         + "LEFT JOIN ticket_place tp ON tp.id = t.to_place_id "
                         + "LEFT JOIN income_type it ON it.id = t.income_type_id "
                         + "LEFT JOIN customers c ON c.id = t.customer_id "
-                        + "WHERE t.is_active = 1 AND DATE(t.entry_date_time) BETWEEN ? AND ? "
-                        + "ORDER BY t.entry_date_time, t.id",
+                        + "WHERE t.is_active = 1 AND DATE(COALESCE(t.actual_date_time, t.entry_date_time)) BETWEEN ? AND ? "
+                        + "ORDER BY COALESCE(t.actual_date_time, t.entry_date_time), t.id",
                 (rs, i) -> {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("date", asStr(rs.getObject("entry_date")));

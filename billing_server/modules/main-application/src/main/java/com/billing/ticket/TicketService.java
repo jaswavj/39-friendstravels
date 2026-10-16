@@ -28,6 +28,7 @@ import java.util.Map;
 public class TicketService {
 
     private final JdbcTemplate jdbcTemplate;
+    private static final String COLLECTED_DT = "COALESCE(t.actual_date_time, t.entry_date_time)";
 
     public List<TicketCustomerData> searchCustomers(String query, String phone) {
         String term = phone != null && !phone.isBlank() ? phone.trim() : (query == null ? "" : query.trim());
@@ -93,45 +94,54 @@ public class TicketService {
     }
 
     public Map<String, Object> report(String from, String to, String customerName, String phone,
-                                     String kind, String incomeType, int page, int size) {
+                                     String kind, String incomeType, Boolean includeCollection, int page, int size) {
         String fromDate = required(from, "From date is required");
         String toDate = required(to, "To date is required");
         String name = customerName == null ? "" : customerName.trim();
         String phoneTerm = phone == null ? "" : phone.trim();
         String kindTerm = kind == null ? "" : kind.trim().toUpperCase();
         String incomeTerm = incomeType == null ? "" : incomeType.trim();
-        if (!"TICKET".equals(kindTerm) && !"INCOME".equals(kindTerm)) {
+        if (!"TICKET".equals(kindTerm) && !"INCOME".equals(kindTerm) && !"COLLECTION".equals(kindTerm)) {
             kindTerm = "";
         }
-        String extra = "";
-        List<Object> args = new ArrayList<>();
-        args.add(fromDate);
-        args.add(toDate);
+        boolean includeTickets = !"COLLECTION".equals(kindTerm);
+        boolean includeDues = "COLLECTION".equals(kindTerm)
+                || (kindTerm.isEmpty() && Boolean.TRUE.equals(includeCollection) && incomeTerm.isEmpty());
+        String ticketExtra = "";
+        String dueExtra = "";
+        List<Object> ticketArgs = new ArrayList<>();
+        List<Object> dueArgs = new ArrayList<>();
+        ticketArgs.add(fromDate);
+        ticketArgs.add(toDate);
+        dueArgs.add(fromDate);
+        dueArgs.add(toDate);
         if (!name.isEmpty()) {
-            extra += " AND c.name LIKE ?";
-            args.add("%" + name + "%");
+            ticketExtra += " AND c.name LIKE ?";
+            dueExtra += " AND c.name LIKE ?";
+            ticketArgs.add("%" + name + "%");
+            dueArgs.add("%" + name + "%");
         }
         if (!phoneTerm.isEmpty()) {
-            extra += " AND c.phone_number LIKE ?";
-            args.add("%" + phoneTerm + "%");
+            ticketExtra += " AND c.phone_number LIKE ?";
+            dueExtra += " AND c.phone_number LIKE ?";
+            ticketArgs.add("%" + phoneTerm + "%");
+            dueArgs.add("%" + phoneTerm + "%");
         }
-        if (!kindTerm.isEmpty()) {
-            extra += " AND COALESCE(t.entry_kind, 'TICKET') = ?";
-            args.add(kindTerm);
+        if ("TICKET".equals(kindTerm) || "INCOME".equals(kindTerm)) {
+            ticketExtra += " AND COALESCE(t.entry_kind, 'TICKET') = ?";
+            ticketArgs.add(kindTerm);
         }
         if (!incomeTerm.isEmpty()) {
-            extra += " AND it.name LIKE ?";
-            args.add("%" + incomeTerm + "%");
+            ticketExtra += " AND it.name LIKE ?";
+            ticketArgs.add("%" + incomeTerm + "%");
         }
-        String filter = " FROM ticket_entry t "
-                + "LEFT JOIN customers c ON c.id = t.customer_id "
-                + "LEFT JOIN income_type it ON it.id = t.income_type_id "
-                + "WHERE t.is_active = 1 AND DATE(t.entry_date_time) BETWEEN ? AND ?"
-                + extra;
-        String sql = "SELECT t.id, DATE_FORMAT(t.entry_date_time, '%Y-%m-%d %H:%i') AS dateTime, "
+        String ticketSql = "SELECT t.id, DATE_FORMAT(" + COLLECTED_DT + ", '%Y-%m-%d %H:%i') AS dateTime, "
+                + "DATE_FORMAT(t.entry_date_time, '%Y-%m-%d %H:%i') AS ticketDate, "
+                + "DATE_FORMAT(" + COLLECTED_DT + ", '%Y-%m-%d %H:%i') AS collectedDate, "
                 + "COALESCE(c.name, '') AS customerName, COALESCE(c.phone_number, '') AS phone, "
                 + "fp.name AS fromName, tp.name AS toName, COALESCE(t.transport, '') AS transport, "
-                + "COALESCE(t.notes, '') AS notes, t.amount, t.cash_paid, t.gpay_paid, t.card_paid, "
+                + "COALESCE(t.notes, '') AS notes, COALESCE(t.qty, 0) AS qty, COALESCE(t.bus_name, '') AS busName, "
+                + "COALESCE(t.area, '') AS area, t.amount, t.cash_paid, t.gpay_paid, t.card_paid, "
                 + "t.credit_amount, COALESCE(u.user_name, '') AS userName, "
                 + "COALESCE(t.entry_kind, 'TICKET') AS kind, COALESCE(it.name, '') AS incomeTypeName "
                 + "FROM ticket_entry t "
@@ -140,9 +150,44 @@ public class TicketService {
                 + "LEFT JOIN income_type it ON it.id = t.income_type_id "
                 + "LEFT JOIN customers c ON c.id = t.customer_id "
                 + "LEFT JOIN users u ON u.id = t.uid "
-                + "WHERE t.is_active = 1 AND DATE(t.entry_date_time) BETWEEN ? AND ?"
-                + extra
-                + " ORDER BY t.entry_date_time DESC, t.id DESC";
+                + "WHERE t.is_active = 1 AND DATE(" + COLLECTED_DT + ") BETWEEN ? AND ?"
+                + ticketExtra;
+        String dueSql = "SELECT d.id, DATE_FORMAT(TIMESTAMP(d.date, COALESCE(d.time, '00:00:00')), '%Y-%m-%d %H:%i') AS dateTime, "
+                + "CAST(NULL AS CHAR) AS ticketDate, "
+                + "DATE_FORMAT(TIMESTAMP(d.date, COALESCE(d.time, '00:00:00')), '%Y-%m-%d %H:%i') AS collectedDate, "
+                + "COALESCE(c.name, '') AS customerName, COALESCE(c.phone_number, '') AS phone, "
+                + "CAST(NULL AS CHAR) AS fromName, CAST(NULL AS CHAR) AS toName, '' AS transport, "
+                + "COALESCE(d.notes, '') AS notes, 0 AS qty, '' AS busName, '' AS area, d.amount, d.cash_paid, "
+                + "CASE WHEN d.pay_type = 1 THEN d.bank_paid ELSE 0 END AS gpay_paid, "
+                + "CASE WHEN d.pay_type <> 1 THEN d.bank_paid ELSE 0 END AS card_paid, "
+                + "0 AS credit_amount, COALESCE(u.user_name, '') AS userName, "
+                + "'COLLECTION' AS kind, 'Due Collection' AS incomeTypeName "
+                + "FROM prod_bill_due d "
+                + "LEFT JOIN customers c ON c.id = d.customer_id "
+                + "LEFT JOIN users u ON u.id = d.uid "
+                + "WHERE COALESCE(d.txn_type, 'COLLECTION') = 'COLLECTION' AND d.date BETWEEN ? AND ?"
+                + dueExtra;
+        List<String> parts = new ArrayList<>();
+        List<Object> args = new ArrayList<>();
+        if (includeTickets) {
+            parts.add(ticketSql);
+            args.addAll(ticketArgs);
+        }
+        if (includeDues) {
+            parts.add(dueSql);
+            args.addAll(dueArgs);
+        }
+        if (parts.isEmpty()) {
+            Map<String, Object> empty = new LinkedHashMap<>();
+            empty.put("items", List.of());
+            empty.put("total", 0);
+            empty.put("page", 0);
+            empty.put("size", size);
+            empty.put("amount", 0d);
+            empty.put("credit", 0d);
+            return empty;
+        }
+        String sql = "SELECT * FROM (" + String.join(" UNION ALL ", parts) + ") x ORDER BY collectedDate DESC, id DESC";
         PageResult<Map<String, Object>> pg = JdbcPageHelper.query(
                 jdbcTemplate,
                 sql,
@@ -152,18 +197,25 @@ public class TicketService {
                     String typeName = rs.getString("incomeTypeName");
                     String fromName = rs.getString("fromName");
                     String toName = rs.getString("toName");
+                    boolean collection = "COLLECTION".equalsIgnoreCase(entryKind);
                     boolean income = "INCOME".equalsIgnoreCase(entryKind);
                     row.put("id", rs.getLong("id"));
                     row.put("dateTime", rs.getString("dateTime"));
+                    row.put("ticketDate", rs.getString("ticketDate"));
+                    row.put("collectedDate", rs.getString("collectedDate"));
                     row.put("customerName", rs.getString("customerName"));
                     row.put("phone", rs.getString("phone"));
-                    row.put("kind", income ? "INCOME" : "TICKET");
+                    row.put("kind", collection ? "COLLECTION" : income ? "INCOME" : "TICKET");
                     row.put("fromName", fromName == null ? "" : fromName);
                     row.put("toName", toName == null ? "" : toName);
                     row.put("incomeTypeName", typeName);
-                    row.put("route", income ? typeName : ((fromName == null ? "" : fromName) + " → " + (toName == null ? "" : toName)));
+                    row.put("route", collection ? "Due Collection" : income ? typeName
+                            : ((fromName == null ? "" : fromName) + " → " + (toName == null ? "" : toName)));
                     row.put("transport", rs.getString("transport"));
                     row.put("notes", rs.getString("notes"));
+                    row.put("qty", rs.getDouble("qty"));
+                    row.put("busName", rs.getString("busName"));
+                    row.put("area", rs.getString("area"));
                     row.put("amount", rs.getDouble("amount"));
                     row.put("cashPaid", rs.getDouble("cash_paid"));
                     row.put("gpayPaid", rs.getDouble("gpay_paid"));
@@ -177,7 +229,11 @@ public class TicketService {
                 args.toArray()
         );
         Map<String, Object> sums = jdbcTemplate.queryForMap(
-                "SELECT COALESCE(SUM(t.amount), 0) AS amount, COALESCE(SUM(t.credit_amount), 0) AS credit" + filter,
+                "SELECT COALESCE(SUM(amount), 0) AS amount, COALESCE(SUM(credit_amount), 0) AS credit, "
+                        + "COALESCE(SUM(cash_paid), 0) AS cash, "
+                        + "COALESCE(SUM(gpay_paid + card_paid), 0) AS bank, "
+                        + "COALESCE(SUM(cash_paid + gpay_paid + card_paid), 0) AS collected FROM ("
+                        + String.join(" UNION ALL ", parts) + ") s",
                 args.toArray()
         );
         Map<String, Object> data = new LinkedHashMap<>();
@@ -187,6 +243,81 @@ public class TicketService {
         data.put("size", pg.getSize());
         data.put("amount", num(sums.get("amount")));
         data.put("credit", num(sums.get("credit")));
+        data.put("cash", num(sums.get("cash")));
+        data.put("bank", num(sums.get("bank")));
+        data.put("collected", num(sums.get("collected")));
+        return data;
+    }
+
+    public Map<String, Object> bookingReport(String from, String to, boolean dueOnly, int page, int size) {
+        String fromDate = required(from, "From date is required");
+        String toDate = required(to, "To date is required");
+        String settled = "SELECT x.id, DATE_FORMAT(x.entry_date_time, '%Y-%m-%d %H:%i') AS bookingDate, "
+                + "x.customerName, x.phone, x.area, x.busName, x.amount, "
+                + "ROUND(x.ticketPaid + LEAST(x.credit, GREATEST(0, COALESCE(d.collected, 0) - COALESCE(o.oldDue, 0) - x.creditBefore)), 2) AS paid, "
+                + "ROUND(GREATEST(0, x.credit - LEAST(x.credit, GREATEST(0, COALESCE(d.collected, 0) - COALESCE(o.oldDue, 0) - x.creditBefore))), 2) AS balance, "
+                + "x.notes, x.userName "
+                + "FROM ("
+                + "SELECT t.id, t.customer_id, t.entry_date_time, COALESCE(c.name, '') AS customerName, "
+                + "COALESCE(c.phone_number, '') AS phone, COALESCE(t.area, '') AS area, "
+                + "COALESCE(NULLIF(TRIM(t.bus_name), ''), t.transport, '') AS busName, t.amount, "
+                + "(COALESCE(t.cash_paid, 0) + COALESCE(t.gpay_paid, 0) + COALESCE(t.card_paid, 0)) AS ticketPaid, "
+                + "COALESCE(t.credit_amount, 0) AS credit, COALESCE(t.notes, '') AS notes, "
+                + "COALESCE(u.user_name, '') AS userName, COALESCE(t.entry_kind, 'TICKET') AS kind, "
+                + "SUM(COALESCE(t.credit_amount, 0)) OVER (PARTITION BY t.customer_id ORDER BY t.entry_date_time, t.id) "
+                + "- COALESCE(t.credit_amount, 0) AS creditBefore "
+                + "FROM ticket_entry t "
+                + "LEFT JOIN customers c ON c.id = t.customer_id "
+                + "LEFT JOIN users u ON u.id = t.uid "
+                + "WHERE t.is_active = 1"
+                + ") x "
+                + "LEFT JOIN ("
+                + "SELECT customer_id, SUM(amount) AS collected FROM prod_bill_due "
+                + "WHERE COALESCE(txn_type, 'COLLECTION') = 'COLLECTION' GROUP BY customer_id"
+                + ") d ON d.customer_id = x.customer_id "
+                + "LEFT JOIN ("
+                + "SELECT customer_id, SUM(amount) AS oldDue FROM prod_bill_due "
+                + "WHERE txn_type = 'OLD_DUE' GROUP BY customer_id"
+                + ") o ON o.customer_id = x.customer_id "
+                + "WHERE COALESCE(x.kind, 'TICKET') = 'TICKET' AND DATE(x.entry_date_time) BETWEEN ? AND ?";
+        String sql = "SELECT * FROM (" + settled + ") r"
+                + (dueOnly ? " WHERE r.balance > 0.001" : "")
+                + " ORDER BY r.bookingDate, r.id";
+        PageResult<Map<String, Object>> pg = JdbcPageHelper.query(
+                jdbcTemplate,
+                sql,
+                (rs, i) -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("id", rs.getLong("id"));
+                    row.put("bookingDate", rs.getString("bookingDate"));
+                    row.put("customerName", rs.getString("customerName"));
+                    row.put("phone", rs.getString("phone"));
+                    row.put("area", rs.getString("area"));
+                    row.put("busName", rs.getString("busName"));
+                    row.put("amount", rs.getDouble("amount"));
+                    row.put("paid", rs.getDouble("paid"));
+                    row.put("balance", rs.getDouble("balance"));
+                    row.put("notes", rs.getString("notes"));
+                    row.put("userName", rs.getString("userName"));
+                    return row;
+                },
+                page,
+                size,
+                fromDate, toDate
+        );
+        Map<String, Object> sums = jdbcTemplate.queryForMap(
+                "SELECT COALESCE(SUM(amount), 0) AS amount, COALESCE(SUM(paid), 0) AS paid, COALESCE(SUM(balance), 0) AS balance "
+                        + "FROM (" + settled + ") r" + (dueOnly ? " WHERE r.balance > 0.001" : ""),
+                fromDate, toDate
+        );
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("items", pg.getItems());
+        data.put("total", pg.getTotal());
+        data.put("page", pg.getPage());
+        data.put("size", pg.getSize());
+        data.put("amount", num(sums.get("amount")));
+        data.put("paid", num(sums.get("paid")));
+        data.put("balance", num(sums.get("balance")));
         return data;
     }
 
@@ -255,16 +386,19 @@ public class TicketService {
 
         int updated = jdbcTemplate.update(
                 "UPDATE ticket_entry SET customer_id = ?, from_place_id = ?, to_place_id = ?, transport = ?, notes = ?, "
-                        + "amount = ?, cash_paid = ?, gpay_paid = ?, card_paid = ?, credit_amount = ?, entry_date_time = ?, uid = ?, "
+                        + "qty = ?, bus_name = ?, area = ?, "
+                        + "amount = ?, cash_paid = ?, gpay_paid = ?, card_paid = ?, credit_amount = ?, "
+                        + "entry_date_time = ?, actual_date_time = NOW(), uid = ?, "
                         + "entry_kind = ?, income_type_id = ? "
                         + "WHERE id = ? AND is_active = 1",
-                customerId, fromId, toId, next.transport, next.notes, next.amount, next.cash, next.gpay, next.card,
+                customerId, fromId, toId, next.transport, next.notes, next.qty, next.busName, next.area,
+                next.amount, next.cash, next.gpay, next.card,
                 next.credit, next.dateTime, uid, next.income ? "INCOME" : "TICKET", incomeTypeId, id
         );
         if (updated == 0) {
             throw new RuntimeException("Ticket not found");
         }
-        writeLedger(id, customerId, next.amount, next.cash, next.gpay, next.card, uid, next.dateTime);
+        writeLedger(id, customerId, next.amount, next.cash, next.gpay, next.card, uid);
 
         String route = label(next);
         List<String> changes = new ArrayList<>();
@@ -329,9 +463,9 @@ public class TicketService {
         KeyHolder keys = new GeneratedKeyHolder();
         jdbcTemplate.update(con -> {
             PreparedStatement ps = con.prepareStatement(
-                    "INSERT INTO ticket_entry (customer_id, from_place_id, to_place_id, transport, notes, amount, "
-                            + "cash_paid, gpay_paid, card_paid, credit_amount, entry_date_time, uid, is_active, entry_kind, income_type_id) "
-                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+                    "INSERT INTO ticket_entry (customer_id, from_place_id, to_place_id, transport, notes, qty, bus_name, area, amount, "
+                            + "cash_paid, gpay_paid, card_paid, credit_amount, entry_date_time, actual_date_time, uid, is_active, entry_kind, income_type_id) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, 1, ?, ?)",
                     Statement.RETURN_GENERATED_KEYS
             );
             ps.setLong(1, customerId);
@@ -339,15 +473,18 @@ public class TicketService {
             setLongOrNull(ps, 3, toId);
             ps.setString(4, next.transport);
             ps.setString(5, next.notes);
-            ps.setDouble(6, next.amount);
-            ps.setDouble(7, next.cash);
-            ps.setDouble(8, next.gpay);
-            ps.setDouble(9, next.card);
-            ps.setDouble(10, next.credit);
-            ps.setString(11, next.dateTime);
-            ps.setLong(12, uid);
-            ps.setString(13, next.income ? "INCOME" : "TICKET");
-            setLongOrNull(ps, 14, incomeTypeId);
+            ps.setDouble(6, next.qty);
+            ps.setString(7, next.busName);
+            ps.setString(8, next.area);
+            ps.setDouble(9, next.amount);
+            ps.setDouble(10, next.cash);
+            ps.setDouble(11, next.gpay);
+            ps.setDouble(12, next.card);
+            ps.setDouble(13, next.credit);
+            ps.setString(14, next.dateTime);
+            ps.setLong(15, uid);
+            ps.setString(16, next.income ? "INCOME" : "TICKET");
+            setLongOrNull(ps, 17, incomeTypeId);
             return ps;
         }, keys);
         Number key = keys.getKey();
@@ -355,7 +492,7 @@ public class TicketService {
             throw new RuntimeException("Failed to save ticket");
         }
 
-        writeLedger(key.longValue(), customerId, next.amount, next.cash, next.gpay, next.card, uid, next.dateTime);
+        writeLedger(key.longValue(), customerId, next.amount, next.cash, next.gpay, next.card, uid);
         String route = label(next);
         logTicket(key.longValue(), route, "CREATE",
                 (next.income ? "Other income · " : "")
@@ -507,7 +644,10 @@ public class TicketService {
                 "SELECT t.id, t.customer_id, COALESCE(c.name, '') AS customerName, COALESCE(c.phone_number, '') AS phone, "
                         + "t.from_place_id, fp.name AS fromName, t.to_place_id, tp.name AS toName, "
                         + "COALESCE(t.transport, '') AS transport, COALESCE(t.notes, '') AS notes, "
+                        + "COALESCE(t.qty, 0) AS qty, COALESCE(t.bus_name, '') AS busName, COALESCE(t.area, '') AS area, "
                         + "t.amount, t.cash_paid, t.gpay_paid, t.card_paid, t.credit_amount, "
+                        + "DATE_FORMAT(COALESCE(t.actual_date_time, t.entry_date_time), '%Y-%m-%d') AS actualDate, "
+                        + "DATE_FORMAT(COALESCE(t.actual_date_time, t.entry_date_time), '%H:%i') AS actualTime, "
                         + "DATE_FORMAT(t.entry_date_time, '%Y-%m-%d') AS entryDate, "
                         + "DATE_FORMAT(t.entry_date_time, '%H:%i') AS entryTime, "
                         + "DATE_FORMAT(t.entry_date_time, '%Y-%m-%d %H:%i') AS dateTime, "
@@ -538,14 +678,23 @@ public class TicketService {
                     row.put("route", income ? incomeType : ((fromName == null ? "" : fromName) + " → " + (toName == null ? "" : toName)));
                     row.put("transport", rs.getString("transport"));
                     row.put("notes", rs.getString("notes"));
+                    row.put("qty", rs.getDouble("qty"));
+                    row.put("busName", rs.getString("busName"));
+                    row.put("area", rs.getString("area"));
                     row.put("amount", rs.getDouble("amount"));
                     row.put("cashPaid", rs.getDouble("cash_paid"));
                     row.put("gpayPaid", rs.getDouble("gpay_paid"));
                     row.put("cardPaid", rs.getDouble("card_paid"));
                     row.put("credit", rs.getDouble("credit_amount"));
+                    row.put("actualDate", rs.getString("actualDate"));
+                    row.put("actualTime", rs.getString("actualTime"));
                     row.put("entryDate", rs.getString("entryDate"));
                     row.put("entryTime", rs.getString("entryTime"));
                     row.put("dateTime", rs.getString("dateTime"));
+                    String ticketDate = (rs.getString("entryDate") + " " + rs.getString("entryTime")).trim();
+                    String collectedDate = (rs.getString("actualDate") + " " + rs.getString("actualTime")).trim();
+                    row.put("ticketDate", ticketDate);
+                    row.put("collectedDate", collectedDate);
                     return row;
                 },
                 id
@@ -563,6 +712,12 @@ public class TicketService {
         ParsedTicket next = new ParsedTicket();
         next.income = request.getKind() != null && "INCOME".equalsIgnoreCase(request.getKind().trim());
         next.notes = request.getNotes() == null ? "" : request.getNotes().trim();
+        next.qty = request.getQty() == null ? 0 : request.getQty();
+        if (next.qty < 0) {
+            throw new RuntimeException("Qty cannot be negative");
+        }
+        next.busName = request.getBusName() == null ? "" : request.getBusName().trim();
+        next.area = request.getArea() == null ? "" : request.getArea().trim();
         if (next.income) {
             next.incomeTypeName = required(request.getIncomeTypeName(), "Income type is required");
             next.transport = "";
@@ -592,20 +747,20 @@ public class TicketService {
     }
 
     private void writeLedger(long ticketId, long customerId, double amount, double cash, double gpay, double card,
-                             Long uid, String dateTime) {
+                             Long uid) {
         double bank = money(gpay + card);
         int payMode = cash > 0 && bank > 0 ? 3 : bank > 0 ? 2 : 1;
         int payType = gpay > 0 && card > 0 ? 3 : gpay > 0 ? 1 : card > 0 ? 2 : 0;
         int n = jdbcTemplate.update(
                 "UPDATE prod_ledger SET customer_id = ?, payment_mode = ?, bill_amount = ?, cash_paid = ?, bank_paid = ?, "
-                        + "payment_type = ?, uid = ?, date_time = ? WHERE bill_type = 13 AND bill_id = ?",
-                customerId, payMode, amount, cash, bank, payType, uid, dateTime, ticketId
+                        + "payment_type = ?, uid = ?, date_time = NOW() WHERE bill_type = 13 AND bill_id = ?",
+                customerId, payMode, amount, cash, bank, payType, uid, ticketId
         );
         if (n == 0) {
             jdbcTemplate.update(
                     "INSERT INTO prod_ledger (bill_type, bill_id, customer_id, supplier_id, payment_mode, bill_amount, cash_paid, bank_paid, payment_type, uid, date_time) "
-                            + "VALUES (13, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)",
-                    ticketId, customerId, payMode, amount, cash, bank, payType, uid, dateTime
+                            + "VALUES (13, ?, ?, NULL, ?, ?, ?, ?, ?, ?, NOW())",
+                    ticketId, customerId, payMode, amount, cash, bank, payType, uid
             );
         }
     }
@@ -708,6 +863,9 @@ public class TicketService {
         String incomeTypeName;
         String transport;
         String notes;
+        double qty;
+        String busName;
+        String area;
         String fromName;
         String toName;
         double amount;

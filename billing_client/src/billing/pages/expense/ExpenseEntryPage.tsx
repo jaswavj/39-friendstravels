@@ -15,6 +15,9 @@ const n2 = (v: number) => (Number.isFinite(v) ? v.toFixed(2) : '0.00');
 const emptyForm = () => ({
   expenseType: '',
   amount: '',
+  qty: '',
+  busName: '',
+  area: '',
   content: '',
   description: '',
   expenseDate: today(),
@@ -129,6 +132,9 @@ const ExpenseEntryPage: React.FC = () => {
         expenseType: Number(form.expenseType),
         content: form.content.trim(),
         description: form.description.trim(),
+        qty: parseFloat(form.qty) || 0,
+        busName: form.busName.trim(),
+        area: form.area.trim(),
         amount,
         expenseDate: form.expenseDate,
         expenseTime: form.expenseTime,
@@ -159,6 +165,18 @@ const ExpenseEntryPage: React.FC = () => {
               <option value="">-- Select Expense Type --</option>
               {types.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
+          </div>
+          <div className="mst-fg">
+            <label>Area</label>
+            <input className="mst-inp" value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} placeholder="Area" />
+          </div>
+          <div className="mst-fg">
+            <label>Qty</label>
+            <input className="mst-inp" type="number" min="0" step="0.01" value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} placeholder="0" />
+          </div>
+          <div className="mst-fg">
+            <label>Bus Name</label>
+            <input className="mst-inp" value={form.busName} onChange={(e) => setForm({ ...form, busName: e.target.value })} placeholder="Bus name" />
           </div>
           <div className="mst-fg">
             <label>Amount <span className="req">*</span></label>

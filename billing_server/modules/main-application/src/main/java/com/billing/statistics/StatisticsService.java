@@ -133,20 +133,20 @@ public class StatisticsService {
         String prevStart = prev.atDay(1).format(ISO);
         String prevEnd = prev.atEndOfMonth().format(ISO);
 
-        double sales = sum("SELECT COALESCE(SUM(amount),0) FROM ticket_entry WHERE is_active = 1 AND DATE(entry_date_time) BETWEEN ? AND ?", start, end);
-        double lastSales = sum("SELECT COALESCE(SUM(amount),0) FROM ticket_entry WHERE is_active = 1 AND DATE(entry_date_time) BETWEEN ? AND ?", prevStart, prevEnd);
+        double sales = sum("SELECT COALESCE(SUM(amount),0) FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) BETWEEN ? AND ?", start, end);
+        double lastSales = sum("SELECT COALESCE(SUM(amount),0) FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) BETWEEN ? AND ?", prevStart, prevEnd);
         double expense = sum("SELECT COALESCE(SUM(amount),0) FROM expense_entry WHERE is_active = 1 AND DATE(exc_date_time) BETWEEN ? AND ?", start, end);
         double lastExpense = sum("SELECT COALESCE(SUM(amount),0) FROM expense_entry WHERE is_active = 1 AND DATE(exc_date_time) BETWEEN ? AND ?", prevStart, prevEnd);
-        double todaySales = sum("SELECT COALESCE(SUM(amount),0) FROM ticket_entry WHERE is_active = 1 AND DATE(entry_date_time) = CURDATE()");
+        double todaySales = sum("SELECT COALESCE(SUM(amount),0) FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) = CURDATE()");
         Integer todayBillsVal = jdbcTemplate.query(
-                "SELECT COUNT(*) FROM ticket_entry WHERE is_active = 1 AND DATE(entry_date_time) = CURDATE()",
+                "SELECT COUNT(*) FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) = CURDATE()",
                 rs -> rs.next() ? rs.getInt(1) : 0
         );
         int todayBills = todayBillsVal == null ? 0 : todayBillsVal;
 
         Map<String, Double> salesByDay = new HashMap<>();
         jdbcTemplate.query(
-                "SELECT DATE(entry_date_time) AS d, COALESCE(SUM(amount),0) AS t FROM ticket_entry WHERE is_active = 1 AND DATE(entry_date_time) BETWEEN ? AND ? GROUP BY DATE(entry_date_time)",
+                "SELECT DATE(COALESCE(actual_date_time, entry_date_time)) AS d, COALESCE(SUM(amount),0) AS t FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) BETWEEN ? AND ? GROUP BY DATE(COALESCE(actual_date_time, entry_date_time))",
                 (rs, i) -> {
                     salesByDay.put(asStr(rs.getObject("d")), rs.getDouble("t"));
                     return null;

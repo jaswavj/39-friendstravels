@@ -40,7 +40,7 @@ export const moduleIdForPath = (pathname: string): number | null => {
   if (pathname.includes('/app/users/change-password')) return null;
   if (pathname.includes('/app/billing/print')) return null;
   if (pathname.includes('/app/statistics') || pathname.includes('/app/dashboard')) return MENU_MODULE.dashboard;
-  if (pathname.includes('/app/ticket/report') || pathname.includes('/app/account-reports/day-book')) return MENU_MODULE.ticketReport;
+  if (pathname.includes('/app/ticket/report') || pathname.includes('/app/ticket/booking-report') || pathname.includes('/app/account-reports/day-book')) return MENU_MODULE.ticketReport;
   if (pathname.includes('/app/ticket')) return MENU_MODULE.bookTicket;
   if (pathname.includes('/app/credit')) return MENU_MODULE.credit;
   if (pathname.includes('/app/expense')) return MENU_MODULE.expense;
@@ -70,6 +70,7 @@ export const billingMenuConfig: MenuItemConfig[] = [
     moduleId: MENU_MODULE.ticketReport,
     submenus: [
       { id: 'ticket-list', name: 'Income Report', url: routerPathNames.ticket.report, icon: 'fas fa-list' },
+      { id: 'ticket-booking-report', name: 'Ticket Report', url: routerPathNames.ticket.bookingReport, icon: 'fas fa-ticket-alt' },
       { id: 'day-book', name: 'Day Book', url: routerPathNames.accountReports.dayBook, icon: 'fas fa-book' },
     ],
   },

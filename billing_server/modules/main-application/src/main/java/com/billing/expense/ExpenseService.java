@@ -68,6 +68,12 @@ public class ExpenseService {
         }
         String content = required(request.getContent(), "Please enter content");
         String description = request.getDescription() == null ? "" : request.getDescription().trim();
+        double qty = nz(request.getQty());
+        if (qty < 0) {
+            throw new RuntimeException("Qty cannot be negative");
+        }
+        String busName = request.getBusName() == null ? "" : request.getBusName().trim();
+        String area = request.getArea() == null ? "" : request.getArea().trim();
         double amount = nz(request.getAmount());
         if (amount <= 0) {
             throw new RuntimeException("Please enter a valid amount.");
@@ -115,16 +121,19 @@ public class ExpenseService {
         KeyHolder keys = new GeneratedKeyHolder();
         jdbcTemplate.update(con -> {
             PreparedStatement ps = con.prepareStatement(
-                    "INSERT INTO expense_entry(exp_type, content, description, amount, exc_date_time, entry_date_time, uid, is_active) "
-                            + "VALUES (?, ?, ?, ?, ?, NOW(), ?, 1)",
+                    "INSERT INTO expense_entry(exp_type, content, description, qty, bus_name, area, amount, exc_date_time, entry_date_time, uid, is_active) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, 1)",
                     Statement.RETURN_GENERATED_KEYS
             );
             ps.setLong(1, request.getExpenseType());
             ps.setString(2, content);
             ps.setString(3, description);
-            ps.setDouble(4, amount);
-            ps.setString(5, dateTime);
-            ps.setLong(6, uid);
+            ps.setDouble(4, qty);
+            ps.setString(5, busName);
+            ps.setString(6, area);
+            ps.setDouble(7, amount);
+            ps.setString(8, dateTime);
+            ps.setLong(9, uid);
             return ps;
         }, keys);
         Number key = keys.getKey();
@@ -143,6 +152,7 @@ public class ExpenseService {
         String fromDate = required(from, "From date is required");
         String toDate = required(to, "To date is required");
         String sql = "SELECT ee.id, ee.exc_date_time, COALESCE(et.type, 'Unknown') AS type_name, ee.content, ee.description, "
+                + "COALESCE(ee.qty, 0) AS qty, COALESCE(ee.bus_name, '') AS bus_name, COALESCE(ee.area, '') AS area, "
                 + "ee.amount, COALESCE(u.user_name, 'Unknown') AS user_name "
                 + "FROM expense_entry ee "
                 + "LEFT JOIN expense_type et ON ee.exp_type = et.id "
@@ -163,6 +173,9 @@ public class ExpenseService {
             row.setTypeName(rs.getString("type_name"));
             row.setContent(rs.getString("content"));
             row.setDescription(rs.getString("description"));
+            row.setQty(rs.getDouble("qty"));
+            row.setBusName(rs.getString("bus_name"));
+            row.setArea(rs.getString("area"));
             row.setAmount(rs.getDouble("amount"));
             row.setUserName(rs.getString("user_name"));
             return row;

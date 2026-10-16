@@ -7,7 +7,7 @@ import '../credit/Credit.css';
 import ReportActions from '../account-reports/ReportActions';
 
 type TypeRow = { id: number; name: string };
-type Row = { id: number; dateTime: string; typeName: string; content: string; description: string; amount: number; userName: string };
+type Row = { id: number; dateTime: string; typeName: string; content: string; description: string; qty?: number; busName?: string; area?: string; amount: number; userName: string };
 
 const today = () => new Date().toISOString().slice(0, 10);
 const n = (v?: number) => Number(v || 0).toFixed(2);
@@ -66,7 +66,9 @@ const ExpenseReportPage: React.FC = () => {
                 name: 'Expenses',
                 columns: [
                   { key: 'dateTime', label: 'Date' }, { key: 'typeName', label: 'Type' },
-                  { key: 'content', label: 'Content' }, { key: 'description', label: 'Description' },
+                  { key: 'content', label: 'Content' }, { key: 'qty', label: 'Qty', num: true },
+                  { key: 'busName', label: 'Bus Name' }, { key: 'area', label: 'Area' },
+                  { key: 'description', label: 'Description' },
                   { key: 'amount', label: 'Amount', num: true }, { key: 'userName', label: 'Entry By' },
                 ],
                 rows: rows || [],
@@ -102,17 +104,21 @@ const ExpenseReportPage: React.FC = () => {
                 <thead>
                   <tr>
                     <th>#</th><th>Date</th><th>Expense Type</th><th>Content</th>
+                    <th className="num">Qty</th><th>Bus Name</th><th>Area</th>
                     <th>Description</th><th className="num">Amount</th><th>Entry By</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.length === 0 && <tr><td colSpan={7} className="mst-empty">No expense entries found for the selected period.</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={10} className="mst-empty">No expense entries found for the selected period.</td></tr>}
                   {rows.map((row, i) => (
                     <tr key={row.id}>
                       <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                       <td>{row.dateTime}</td>
                       <td>{row.typeName}</td>
                       <td>{row.content}</td>
+                      <td className="num">{row.qty ? n(row.qty) : '—'}</td>
+                      <td>{row.busName || '—'}</td>
+                      <td>{row.area || '—'}</td>
                       <td>{row.description || '—'}</td>
                       <td className="num">₹ {n(row.amount)}</td>
                       <td>{row.userName}</td>
@@ -120,7 +126,7 @@ const ExpenseReportPage: React.FC = () => {
                   ))}
                   {rows.length > 0 && (
                     <tr>
-                      <td colSpan={5}><strong>Page total</strong></td>
+                      <td colSpan={8}><strong>Page total</strong></td>
                       <td className="num"><strong>₹ {n(pageTotal)}</strong></td>
                       <td />
                     </tr>

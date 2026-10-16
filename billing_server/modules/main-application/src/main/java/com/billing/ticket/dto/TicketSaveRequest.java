@@ -16,11 +16,16 @@ public class TicketSaveRequest {
     private Long incomeTypeId;
     private String incomeTypeName;
     private String notes;
+    private Double qty;
+    private String busName;
+    private String area;
     private Double amount;
     private Double cashPaid;
     private Double gpayPaid;
     private Double cardPaid;
     private Double credit;
+    private String actualDate;
+    private String actualTime;
     private String entryDate;
     private String entryTime;
 }

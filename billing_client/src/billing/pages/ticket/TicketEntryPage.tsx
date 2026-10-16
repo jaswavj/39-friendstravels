@@ -36,11 +36,16 @@ type TicketDetail = {
   incomeTypeName?: string;
   transport: string;
   notes: string;
+  qty?: number;
+  busName?: string;
+  area?: string;
   amount: number;
   cashPaid: number;
   gpayPaid: number;
   cardPaid: number;
   credit: number;
+  actualDate?: string;
+  actualTime?: string;
   entryDate: string;
   entryTime: string;
 };
@@ -58,6 +63,9 @@ const emptyForm = (kind: Kind = 'TICKET') => ({
   incomeTypeName: '',
   transport: '',
   notes: '',
+  qty: '',
+  busName: '',
+  area: '',
   amount: '',
   cashPaid: '0.00',
   gpayPaid: '0.00',
@@ -80,6 +88,9 @@ const formFromTicket = (t: TicketDetail) => ({
   incomeTypeName: t.incomeTypeName || '',
   transport: t.transport || '',
   notes: t.notes || '',
+  qty: t.qty != null && Number(t.qty) !== 0 ? String(t.qty) : '',
+  busName: t.busName || '',
+  area: t.area || '',
   amount: n2(Number(t.amount || 0)),
   cashPaid: n2(Number(t.cashPaid || 0)),
   gpayPaid: n2(Number(t.gpayPaid || 0)),
@@ -390,6 +401,9 @@ const TicketEntryPage: React.FC = () => {
       incomeTypeId: income ? (form.incomeTypeId || undefined) : undefined,
       incomeTypeName: income ? form.incomeTypeName.trim() : '',
       notes: form.notes.trim(),
+      qty: income ? num(form.qty) : 0,
+      busName: form.busName.trim(),
+      area: form.area.trim(),
       amount,
       cashPaid: cash,
       gpayPaid: gpay,
@@ -501,6 +515,7 @@ const TicketEntryPage: React.FC = () => {
             </div>
           </div>
           {income ? (
+          <>
           <div className="mst-fg" style={{ gridColumn: '1 / -1' }}>
             <label>Income Type <span className="req">*</span></label>
             <div className="crd-search-wrap">
@@ -530,6 +545,23 @@ const TicketEntryPage: React.FC = () => {
               )}
             </div>
           </div>
+          <div className="mst-fg">
+            <label>Qty</label>
+            <input className="mst-inp" type="number" min="0" step="0.01" value={form.qty} onChange={(e) => setForm({ ...form, qty: e.target.value })} placeholder="0" />
+          </div>
+          <div className="mst-fg">
+            <label>Income Amount <span className="req">*</span></label>
+            <input className="mst-inp" type="number" min="0" step="0.01" value={form.amount} onChange={(e) => onAmount(e.target.value)} placeholder="0.00" />
+          </div>
+          <div className="mst-fg">
+            <label>Bus Name</label>
+            <input className="mst-inp" value={form.busName} onChange={(e) => setForm({ ...form, busName: e.target.value })} placeholder="Bus name" />
+          </div>
+          <div className="mst-fg">
+            <label>Area</label>
+            <input className="mst-inp" value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} placeholder="Area" />
+          </div>
+          </>
           ) : (
           <>
           <div className="mst-fg">
@@ -594,12 +626,20 @@ const TicketEntryPage: React.FC = () => {
             <label>Transport <span className="req">*</span></label>
             <input className="mst-inp" value={form.transport} onChange={(e) => setForm({ ...form, transport: e.target.value })} placeholder="Bus, train, or vehicle" />
           </div>
-          </>
-          )}
           <div className="mst-fg">
-            <label>{income ? 'Income Amount' : 'Ticket Amount'} <span className="req">*</span></label>
+            <label>Ticket Amount <span className="req">*</span></label>
             <input className="mst-inp" type="number" min="0" step="0.01" value={form.amount} onChange={(e) => onAmount(e.target.value)} placeholder="0.00" />
           </div>
+          <div className="mst-fg">
+            <label>Bus Name</label>
+            <input className="mst-inp" value={form.busName} onChange={(e) => setForm({ ...form, busName: e.target.value })} placeholder="Bus name" />
+          </div>
+          <div className="mst-fg">
+            <label>Area</label>
+            <input className="mst-inp" value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} placeholder="Area" />
+          </div>
+          </>
+          )}
           <div className="mst-fg" style={{ gridColumn: '1 / -1' }}>
             <label>Notes</label>
             <textarea className="mst-area" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Seat, passenger, or other notes" />

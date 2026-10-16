@@ -20,12 +20,19 @@ type Card = {
   notes?: string;
   kind?: string;
   incomeTypeName?: string;
+  qty?: number;
+  busName?: string;
+  area?: string;
   amount: number;
   cashPaid: number;
   gpayPaid: number;
   cardPaid: number;
   credit: number;
   userName: string;
+  actualDate?: string;
+  actualTime?: string;
+  entryDate?: string;
+  entryTime?: string;
 };
 
 const monthValue = () => {
@@ -221,7 +228,12 @@ const MonthlyBillsPage: React.FC = () => {
               <div className="mb-view-row"><span>Phone</span><strong>{view.phone || '-'}</strong></div>
               <div className="mb-view-row"><span>Type</span><strong>{view.kind === 'INCOME' || view.incomeTypeName ? 'Other Income' : 'Ticket Entry'}</strong></div>
               {view.kind === 'INCOME' ? (
-                <div className="mb-view-row"><span>Income Type</span><strong>{view.incomeTypeName || view.route || '-'}</strong></div>
+                <>
+                  <div className="mb-view-row"><span>Income Type</span><strong>{view.incomeTypeName || view.route || '-'}</strong></div>
+                  <div className="mb-view-row"><span>Qty</span><strong>{view.qty ? Number(view.qty).toFixed(2) : '-'}</strong></div>
+                  <div className="mb-view-row"><span>Bus Name</span><strong>{view.busName || '-'}</strong></div>
+                  <div className="mb-view-row"><span>Area</span><strong>{view.area || '-'}</strong></div>
+                </>
               ) : (
                 <>
                   <div className="mb-view-row"><span>From</span><strong>{view.fromName || view.route}</strong></div>

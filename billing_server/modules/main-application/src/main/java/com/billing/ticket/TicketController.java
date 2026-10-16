@@ -44,9 +44,19 @@ public class TicketController {
                              @RequestParam(required = false) String phone,
                              @RequestParam(required = false) String kind,
                              @RequestParam(required = false) String incomeType,
+                             @RequestParam(required = false) Boolean includeCollection,
                              @RequestParam(defaultValue = "0") int page,
                              @RequestParam(defaultValue = "25") int size) {
-        return ok(ticketService.report(from, to, customerName, phone, kind, incomeType, page, size));
+        return ok(ticketService.report(from, to, customerName, phone, kind, incomeType, includeCollection, page, size));
+    }
+
+    @GetMapping("/booking-report")
+    public ResponseDO bookingReport(@RequestParam String from,
+                                    @RequestParam String to,
+                                    @RequestParam(defaultValue = "false") boolean dueOnly,
+                                    @RequestParam(defaultValue = "0") int page,
+                                    @RequestParam(defaultValue = "25") int size) {
+        return ok(ticketService.bookingReport(from, to, dueOnly, page, size));
     }
 
     @GetMapping("/entries/{id}")

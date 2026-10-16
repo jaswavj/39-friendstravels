@@ -85,6 +85,7 @@ export const routerPathNames = {
   ticket: {
     entry: '/app/ticket/entry',
     report: '/app/ticket/report',
+    bookingReport: '/app/ticket/booking-report',
   },
   orderList: '/app/order-list',
 };

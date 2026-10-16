@@ -9,6 +9,9 @@ public class ExpenseReportRow {
     private String typeName;
     private String content;
     private String description;
+    private Double qty;
+    private String busName;
+    private String area;
     private Double amount;
     private String userName;
 }

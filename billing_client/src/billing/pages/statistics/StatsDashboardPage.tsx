@@ -174,7 +174,7 @@ const StatsDashboardPage: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="mst-note st-today">Today: ₹ {n(data.todaySales)} across {data.todayBills} income · Showing {data.label}</div>
+          <div className="mst-note st-today">Today collected: ₹ {n(data.todaySales)} across {data.todayBills} income · Showing {data.label} (future tickets paid today count today)</div>
           <div className="st-charts">
             <div className="mst-card st-chart-card">
               <div className="mst-card-h">Daily Income vs Expense — {data.label}</div>

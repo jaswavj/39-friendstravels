@@ -26,7 +26,7 @@ export class TicketApiService {
 
   cancel = (id: number, reason: string) => this.http.post(`/v1/ticket/entries/${id}/cancel`, { reason });
 
-  report = (from: string, to: string, page = 0, size = 25, customerName?: string, phone?: string, kind?: string, incomeType?: string) => {
+  report = (from: string, to: string, page = 0, size = 25, customerName?: string, phone?: string, kind?: string, incomeType?: string, includeCollection?: boolean) => {
     const params = new URLSearchParams();
     params.set('from', from);
     params.set('to', to);
@@ -34,7 +34,16 @@ export class TicketApiService {
     if (phone?.trim()) params.set('phone', phone.trim());
     if (kind?.trim()) params.set('kind', kind.trim());
     if (incomeType?.trim()) params.set('incomeType', incomeType.trim());
+    if (includeCollection) params.set('includeCollection', 'true');
     return this.http.get(`/v1/ticket/report?${params.toString()}&${pageQuery(page, size)}`);
+  };
+
+  bookingReport = (from: string, to: string, page = 0, size = 25, dueOnly = false) => {
+    const params = new URLSearchParams();
+    params.set('from', from);
+    params.set('to', to);
+    if (dueOnly) params.set('dueOnly', 'true');
+    return this.http.get(`/v1/ticket/booking-report?${params.toString()}&${pageQuery(page, size)}`);
   };
 }
 
