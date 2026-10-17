@@ -44,6 +44,7 @@ public class TicketSchema {
                         + "gpay_paid decimal(12,2) NOT NULL DEFAULT 0.00,"
                         + "card_paid decimal(12,2) NOT NULL DEFAULT 0.00,"
                         + "credit_amount decimal(12,2) NOT NULL DEFAULT 0.00,"
+                        + "due_balance decimal(12,2) NOT NULL DEFAULT 0.00,"
                         + "entry_date_time datetime NOT NULL,"
                         + "actual_date_time datetime NULL,"
                         + "uid int NOT NULL,"
@@ -53,6 +54,7 @@ public class TicketSchema {
                         + "qty decimal(12,2) NOT NULL DEFAULT 0.00,"
                         + "bus_name varchar(255) DEFAULT NULL,"
                         + "area varchar(255) DEFAULT NULL,"
+                        + "seat_no varchar(64) DEFAULT NULL,"
                         + "PRIMARY KEY (id),"
                         + "KEY idx_ticket_customer (customer_id),"
                         + "KEY idx_ticket_date (entry_date_time),"
@@ -70,12 +72,31 @@ public class TicketSchema {
         addColumn("ticket_entry", "qty", "decimal(12,2) NOT NULL DEFAULT 0.00");
         addColumn("ticket_entry", "bus_name", "varchar(255) DEFAULT NULL");
         addColumn("ticket_entry", "area", "varchar(255) DEFAULT NULL");
+        addColumn("ticket_entry", "seat_no", "varchar(64) DEFAULT NULL");
+        addColumn("ticket_entry", "party_paid", "decimal(12,2) NOT NULL DEFAULT 0.00");
+        addColumn("expense_entry", "party_paid", "decimal(12,2) NOT NULL DEFAULT 0.00");
         addColumn("expense_entry", "qty", "decimal(12,2) NOT NULL DEFAULT 0.00");
         addColumn("expense_entry", "bus_name", "varchar(255) DEFAULT NULL");
         addColumn("expense_entry", "area", "varchar(255) DEFAULT NULL");
+        addColumn("expense_entry", "customer_name", "varchar(255) DEFAULT NULL");
+        addColumn("expense_entry", "customer_phone", "varchar(64) DEFAULT NULL");
         addColumn("ticket_entry", "actual_date_time", "datetime NULL");
         try {
             jdbcTemplate.update("UPDATE ticket_entry SET actual_date_time = entry_date_time WHERE actual_date_time IS NULL");
+        } catch (Exception ignored) {
+        }
+        addColumn("ticket_entry", "due_balance", "decimal(12,2) NOT NULL DEFAULT 0.00");
+        addColumn("prod_bill_due", "ticket_id", "int unsigned NULL");
+        try {
+            jdbcTemplate.execute("ALTER TABLE prod_bill_due ADD KEY idx_bill_due_ticket (ticket_id)");
+        } catch (Exception ignored) {
+        }
+        try {
+            jdbcTemplate.update(
+                    "UPDATE ticket_entry t SET t.due_balance = t.credit_amount "
+                            + "WHERE t.due_balance = 0 AND t.credit_amount > 0 "
+                            + "AND NOT EXISTS (SELECT 1 FROM prod_bill_due d WHERE d.ticket_id = t.id)"
+            );
         } catch (Exception ignored) {
         }
         jdbcTemplate.execute(
@@ -159,7 +180,7 @@ public class TicketSchema {
         }
     }
 
-    private void addColumn(String table, String name, String definition) {
+    private boolean addColumn(String table, String name, String definition) {
         try {
             Integer count = jdbcTemplate.queryForObject(
                     "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
@@ -168,9 +189,11 @@ public class TicketSchema {
             );
             if (count == null || count == 0) {
                 jdbcTemplate.execute("ALTER TABLE " + table + " ADD COLUMN " + name + " " + definition);
+                return true;
             }
         } catch (Exception ignored) {
         }
+        return false;
     }
 
     private void grantUid(int uid) {

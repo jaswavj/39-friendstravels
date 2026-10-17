@@ -145,7 +145,65 @@
 .crd-badge.ticket { background: #e0f2fe; color: #0369a1; }
 .crd-badge.ticket-due { background: #fee2e2; color: #b91c1c; }
 
-.crd-row-due td { background: #fff1f1; }
+.crd-row-due td { background: #fee2e2; }
+.crd-row-pick { cursor: pointer; }
+.crd-row-pick:hover td { filter: brightness(0.97); }
+tr.crd-row-selected {
+  outline: 2px solid #dc2626;
+  outline-offset: -2px;
+}
+.crd-row-selected td {
+  background: #fecaca !important;
+}
+.crd-head-note {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: #2563eb;
+}
+.crd-collect-hint {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: #b91c1c;
+  margin-top: 2px;
+}
+.crd-selected-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #dc2626;
+  color: #fff;
+  font-size: 11px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+.crd-selected-bill {
+  border: 2px solid #dc2626;
+  background: #fef2f2;
+  color: #991b1b;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin-bottom: 10px;
+}
+.crd-selected-bill small {
+  display: block;
+  font-weight: 600;
+  font-size: 11px;
+  opacity: 0.75;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
 .crd-row-return td { background: #faf5ff; }
 .crd-row-old td { background: #fff7ed; }
 .crd-row-adv td { background: #eff6ff; }

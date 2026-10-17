@@ -10,5 +10,6 @@ public class AccountEntryRequest {
     private Integer payMode;
     private Integer payType;
     private Double amount;
+    private Long ticketId;
     private String notes;
 }

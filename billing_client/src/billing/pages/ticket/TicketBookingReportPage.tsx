@@ -13,6 +13,7 @@ type Row = {
   phone: string;
   area: string;
   busName: string;
+  seatNo?: string;
   amount: number;
   paid: number;
   balance: number;
@@ -81,6 +82,7 @@ const TicketBookingReportPage: React.FC = () => {
                   { key: 'phone', label: 'Mobile No' },
                   { key: 'area', label: 'Area' },
                   { key: 'busName', label: 'Bus' },
+                  { key: 'seatNo', label: 'Seat No' },
                   { key: 'amount', label: 'Amount', num: true },
                   { key: 'paid', label: 'Paid', num: true },
                   { key: 'balance', label: 'Balance', num: true },
@@ -116,7 +118,7 @@ const TicketBookingReportPage: React.FC = () => {
           <div className="mst-card">
             <div className="mst-card-h">Ticket Details</div>
             <div className="mst-table-wrap">
-              <table className="mst-table">
+              <table className="mst-table mst-table-wide">
                 <thead>
                   <tr>
                     <th>S.No</th>
@@ -125,6 +127,7 @@ const TicketBookingReportPage: React.FC = () => {
                     <th>Mobile No</th>
                     <th>Area</th>
                     <th>Bus</th>
+                    <th>Seat No</th>
                     <th className="num">Amount</th>
                     <th className="num">Paid</th>
                     <th className="num">Balance</th>
@@ -133,15 +136,16 @@ const TicketBookingReportPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.length === 0 && <tr><td colSpan={11} className="mst-empty">No tickets in the selected booking date range.</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={12} className="mst-empty">No tickets in the selected booking date range.</td></tr>}
                   {rows.map((row, i) => (
-                    <tr key={row.id}>
+                    <tr key={row.id} className={row.balance > 0.001 ? 'crd-row-due' : undefined}>
                       <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
                       <td>{row.bookingDate || '—'}</td>
                       <td>{row.customerName || '—'}</td>
                       <td>{row.phone || '—'}</td>
                       <td>{row.area || '—'}</td>
                       <td>{row.busName || '—'}</td>
+                      <td>{row.seatNo || '—'}</td>
                       <td className="num">₹ {n(row.amount)}</td>
                       <td className="num">₹ {n(row.paid)}</td>
                       <td className="num" style={row.balance > 0.001 ? { color: '#dc2626', fontWeight: 700 } : undefined}>₹ {n(row.balance)}</td>

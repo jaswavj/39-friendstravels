@@ -240,16 +240,23 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
   const [bankPaid, setBankPaid] = useState('');
   const [notes, setNotes] = useState('');
   const [formError, setFormError] = useState('');
+  const [ticketId, setTicketId] = useState(0);
 
   const load = async () => {
     try {
       const res = isCustomer ? await creditApi.customerAccount(id) : await creditApi.supplierAccount(id);
       const data = creditData<Account>(res);
       setAccount(data);
-      const canCollect = (data.balance || 0) > 0.005;
-      const nextType = canCollect ? 'COLLECTION' : 'ADVANCE';
+      const bills = (data.timeline || []).filter((row) => {
+        const type = (row.type || '').toUpperCase();
+        return (type === 'TICKET' || type === 'OTHER_INCOME') && (row.pending || 0) > 0.005;
+      });
+      const canCollectNow = (data.balance || 0) > 0.005;
+      const nextType = canCollectNow ? 'COLLECTION' : 'ADVANCE';
       setEntryType(nextType);
-      resetAmounts(nextType, data.balance || 0);
+      const firstBill = bills.length === 1 ? bills[0] : null;
+      setTicketId(firstBill ? firstBill.refId : 0);
+      resetAmounts(nextType, firstBill ? firstBill.pending || 0 : canCollectNow && bills.length === 0 ? data.balance || 0 : 0);
       setNotes('');
       setFormError('');
     } catch (err) {
@@ -262,6 +269,16 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
   }, [kind, id]);
 
   const canCollect = (account?.balance || 0) > 0.005;
+  const dueBills = useMemo(
+    () =>
+      (account?.timeline || []).filter((row) => {
+        const type = (row.type || '').toUpperCase();
+        return isCustomer && (type === 'TICKET' || type === 'OTHER_INCOME') && (row.pending || 0) > 0.005;
+      }),
+    [account, isCustomer]
+  );
+  const selectedBill = dueBills.find((row) => row.refId === ticketId) || null;
+  const collectTarget = selectedBill ? selectedBill.pending || 0 : dueBills.length === 0 ? account?.balance || 0 : 0;
 
   const resetAmounts = (type: string, balance: number) => {
     if (type === 'COLLECTION') {
@@ -296,7 +313,21 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
       return;
     }
     setEntryType(type);
-    resetAmounts(type, account?.balance || 0);
+    if (type === 'COLLECTION') {
+      const bill = dueBills.find((row) => row.refId === ticketId) || (dueBills.length === 1 ? dueBills[0] : null);
+      if (bill) setTicketId(bill.refId);
+      resetAmounts(type, bill ? bill.pending || 0 : dueBills.length === 0 ? account?.balance || 0 : 0);
+    } else {
+      resetAmounts(type, account?.balance || 0);
+    }
+    setFormError('');
+  };
+
+  const selectBill = (id: number) => {
+    const bill = dueBills.find((row) => row.refId === id);
+    setTicketId(id);
+    setEntryType('COLLECTION');
+    resetAmounts('COLLECTION', bill?.pending || 0);
     setFormError('');
   };
 
@@ -310,8 +341,8 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
     const cash = parseFloat(cashPaid) || 0;
     const bank = parseFloat(bankPaid) || 0;
     const paid = payMode === '1' ? cash : payMode === '2' ? bank : cash + bank;
-    return Math.max(0, (account?.balance || 0) - paid);
-  }, [entryType, cashPaid, bankPaid, payMode, account]);
+    return Math.max(0, collectTarget - paid);
+  }, [entryType, cashPaid, bankPaid, payMode, collectTarget]);
 
   const submit = async () => {
     setFormError('');
@@ -320,6 +351,14 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
     const bank = parseFloat(bankPaid) || 0;
     if (entryType === 'COLLECTION' && !canCollect) {
       setFormError('No account balance due to collect.');
+      return;
+    }
+    if (isCustomer && entryType === 'COLLECTION' && dueBills.length > 0 && ticketId <= 0) {
+      setFormError('Select a bill to collect.');
+      return;
+    }
+    if (isCustomer && entryType === 'COLLECTION' && selectedBill && amt - (selectedBill.pending || 0) > 0.01) {
+      setFormError(`Amount cannot exceed this bill's balance of ${money(selectedBill.pending)}.`);
       return;
     }
     if (amt <= 0) {
@@ -356,13 +395,18 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
         payMode: entryType === 'OLD_DUE' ? 1 : Number(payMode),
         payType: Number(payType),
         notes,
+        ticketId: isCustomer && entryType === 'COLLECTION' && ticketId > 0 ? ticketId : undefined,
       };
       const res = isCustomer
         ? await creditApi.saveCustomerEntry(id, payload)
         : await creditApi.saveSupplierEntry(id, payload);
-      const saved = creditData<{ entryType: string; newBalance?: number; newAdvance?: number }>(res);
+      const saved = creditData<{ entryType: string; newBalance?: number; newAdvance?: number; newBillBalance?: number }>(res);
       if (saved.entryType === 'COLLECTION') {
-        toast.success(`Remaining balance: ${money(saved.newBalance)}`);
+        toast.success(
+          saved.newBillBalance != null
+            ? `Bill remaining: ${money(saved.newBillBalance)} · Account: ${money(saved.newBalance)}`
+            : `Remaining balance: ${money(saved.newBalance)}`
+        );
       } else if (saved.entryType === 'ADVANCE') {
         toast.success(`Total advance: ${money(saved.newAdvance)}`);
       } else {
@@ -423,7 +467,10 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
             </div>
           </div>
           <div className="mst-card">
-            <div className="mst-card-h">Transactions</div>
+            <div className="mst-card-h">
+              Transactions
+              {isCustomer ? <span className="crd-head-note">Click a due bill to collect</span> : null}
+            </div>
             <div className="mst-table-wrap">
               <table className="mst-table">
                 <thead>
@@ -433,7 +480,7 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                     <th>{isCustomer ? 'Bill No' : 'GRN No'}</th>
                     <th className="num">Payable / Amt</th>
                     <th className="num">Paid</th>
-                    <th className="num">Pending</th>
+                    <th className="num">{isCustomer ? 'Balance' : 'Pending'}</th>
                     <th>Date / Time</th>
                     <th>{isCustomer ? 'Biller' : 'User'}</th>
                   </tr>
@@ -464,9 +511,19 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                           : type === 'OTHER_INCOME' ? 'OTHER INCOME'
                             : type === 'TICKET' ? 'TICKET ENTRY'
                               : type.replace('_', ' ');
+                      const selected = isCustomer && hasPend && ticketId === row.refId;
                       return (
-                        <tr key={`${type}-${i}-${row.date}-${row.time}`} className={rowClass}>
-                          <td>{i + 1}</td>
+                        <tr
+                          key={`${type}-${i}-${row.date}-${row.time}`}
+                          className={`${rowClass}${hasPend && isCustomer ? ' crd-row-pick' : ''}${selected ? ' crd-row-selected' : ''}`}
+                          onClick={() => {
+                            if (hasPend && isCustomer) selectBill(row.refId);
+                          }}
+                        >
+                          <td>
+                            {i + 1}
+                            {selected ? <span className="crd-selected-mark" title="Selected for collection"><i className="fas fa-check" /></span> : null}
+                          </td>
                           <td><span className={`crd-badge ${badge}`}>{label}</span></td>
                           <td>
                             {row.docNo ? <div style={{ fontWeight: 600 }}>{row.docNo}</div> : null}
@@ -477,6 +534,7 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                           <td className="num">{num(row.paid)}</td>
                           <td className="num" style={{ color: hasPend || (type === 'OLD_DUE') || pending > 0 ? '#dc2626' : '#16a34a', fontWeight: 700 }}>
                             {num(row.pending)}
+                            {hasPend && isCustomer ? <div className="crd-collect-hint">{selected ? 'Selected' : 'Collect'}</div> : null}
                           </td>
                           <td style={{ whiteSpace: 'nowrap' }}>
                             {row.date}
@@ -509,8 +567,27 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
                   <i className="fas fa-info-circle" /> No account balance due. You cannot collect payment until there is a due balance.
                 </div>
               )}
+              {isCustomer && entryType === 'COLLECTION' && dueBills.length > 0 && (
+                <div className="mst-fg">
+                  <label>Select Bill to Collect</label>
+                  <select className="mst-sel" value={ticketId || ''} onChange={(e) => selectBill(Number(e.target.value) || 0)}>
+                    <option value="">-- Select bill --</option>
+                    {dueBills.map((bill) => (
+                      <option key={bill.refId} value={bill.refId}>
+                        {bill.docNo || 'Bill'} · Due {money(bill.pending)}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedBill && (
+                    <div className="crd-selected-bill">
+                      <small>Collecting from</small>
+                      {selectedBill.docNo || 'Selected bill'} · Balance {money(selectedBill.pending)}
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="mst-fg">
-                <label>{entryType === 'OLD_DUE' ? 'Old Due Amount' : entryType === 'ADVANCE' ? 'Advance Amount' : 'Amount to Collect'}</label>
+                <label>{entryType === 'OLD_DUE' ? 'Old Due Amount' : entryType === 'ADVANCE' ? 'Advance Amount' : selectedBill ? 'Amount to Collect (this bill)' : 'Amount to Collect'}</label>
                 <input className={`mst-inp crd-amt ${amountClass}`} type="number" min="0" step="0.01" value={amount} onChange={(e) => onAmount(e.target.value)} />
               </div>
               {showPay && (
@@ -580,7 +657,7 @@ export const CreditAccount: React.FC<{ kind: PartyKind; id: number }> = ({ kind,
               </div>
               {entryType === 'COLLECTION' && (
                 <div className="mst-fg">
-                  <label>Remaining Balance</label>
+                  <label>{selectedBill ? 'Remaining on this bill' : 'Remaining Balance'}</label>
                   <input className="mst-inp" readOnly value={remaining.toFixed(2)} style={{ fontWeight: 700, color: '#dc2626', background: '#f8fafc' }} />
                 </div>
               )}

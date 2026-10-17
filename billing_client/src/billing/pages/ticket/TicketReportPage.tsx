@@ -24,10 +24,12 @@ type Row = {
   qty?: number;
   busName?: string;
   area?: string;
+  seatNo?: string;
   amount: number;
   cashPaid: number;
   gpayPaid: number;
   cardPaid: number;
+  partyPaid?: number;
   credit: number;
   userName: string;
   actualDate?: string;
@@ -156,11 +158,13 @@ const TicketReportPage: React.FC = () => {
                   { key: 'qty', label: 'Qty', num: true },
                   { key: 'busName', label: 'Bus Name' },
                   { key: 'area', label: 'Area' },
+                  { key: 'seatNo', label: 'Seat No' },
                   { key: 'transport', label: 'Transport' },
                   { key: 'amount', label: 'Amount', num: true },
                   { key: 'cashPaid', label: 'Cash', num: true },
                   { key: 'gpayPaid', label: 'GPay', num: true },
                   { key: 'cardPaid', label: 'Card', num: true },
+                  { key: 'partyPaid', label: 'Paid by party', num: true },
                   { key: 'credit', label: 'Credit', num: true },
                   { key: 'userName', label: 'Entry By' },
                 ],
@@ -189,17 +193,18 @@ const TicketReportPage: React.FC = () => {
           <div className="mst-card">
             <div className="mst-card-h">Income Details</div>
             <div className="mst-table-wrap">
-              <table className="mst-table">
+              <table className="mst-table mst-table-wide">
                 <thead>
                   <tr>
                     <th>#</th><th>Type</th><th>Collected</th><th>Ticket Date</th><th>Customer</th><th>Phone</th><th>Details</th>
-                    <th className="num">Qty</th><th>Bus Name</th><th>Area</th>
+                    <th className="num">Qty</th><th>Bus Name</th><th>Area</th><th>Seat No</th>
                     <th>Transport</th><th className="num">Amount</th><th className="num">Cash</th>
-                    <th className="num">GPay</th><th className="num">Card</th><th className="num">Credit</th><th>Entry By</th>
+                    <th className="num">GPay</th><th className="num">Card</th><th className="num">Paid by party</th>
+                    <th className="num">Credit</th><th>Entry By</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.length === 0 && <tr><td colSpan={17} className="mst-empty">No tickets, other income, or due collection in the selected period.</td></tr>}
+                  {rows.length === 0 && <tr><td colSpan={19} className="mst-empty">No tickets, other income, or due collection in the selected period.</td></tr>}
                   {rows.map((row, i) => (
                     <tr key={`${row.kind || 'TICKET'}-${row.id}`} className="mst-click-row" title="View details" onClick={() => openView(row)}>
                       <td>{page * DEFAULT_PAGE_SIZE + i + 1}</td>
@@ -212,11 +217,13 @@ const TicketReportPage: React.FC = () => {
                       <td className="num">{row.qty ? n(row.qty) : '—'}</td>
                       <td>{row.busName || '—'}</td>
                       <td>{row.area || '—'}</td>
+                      <td>{isIncome(row) || isCollection(row) ? '—' : (row.seatNo || '—')}</td>
                       <td>{isIncome(row) || isCollection(row) ? '—' : (row.transport || '—')}</td>
                       <td className="num">₹ {n(row.amount)}</td>
                       <td className="num">{n(row.cashPaid)}</td>
                       <td className="num">{n(row.gpayPaid)}</td>
                       <td className="num">{n(row.cardPaid)}</td>
+                      <td className="num">{n(row.partyPaid)}</td>
                       <td className="num">{n(row.credit)}</td>
                       <td>{row.userName || '—'}</td>
                     </tr>
@@ -257,12 +264,16 @@ const TicketReportPage: React.FC = () => {
                   <div className="mb-view-row"><span>To</span><strong>{view.toName || '-'}</strong></div>
                   <div className="mb-view-row"><span>Route</span><strong>{view.route || '-'}</strong></div>
                   <div className="mb-view-row"><span>Transport</span><strong>{view.transport || '-'}</strong></div>
+                  <div className="mb-view-row"><span>Bus Name</span><strong>{view.busName || '-'}</strong></div>
+                  <div className="mb-view-row"><span>Area</span><strong>{view.area || '-'}</strong></div>
+                  <div className="mb-view-row"><span>Seat No</span><strong>{view.seatNo || '-'}</strong></div>
                 </>
               )}
               <div className="mb-view-row"><span>Amount</span><strong>{inr(view.amount)}</strong></div>
               <div className="mb-view-row"><span>Cash</span><strong>{inr(view.cashPaid)}</strong></div>
               <div className="mb-view-row"><span>GPay</span><strong>{inr(view.gpayPaid)}</strong></div>
               <div className="mb-view-row"><span>Card</span><strong>{inr(view.cardPaid)}</strong></div>
+              <div className="mb-view-row"><span>Paid by party</span><strong>{inr(view.partyPaid)}</strong></div>
               <div className="mb-view-row"><span>Credit</span><strong>{inr(view.credit)}</strong></div>
               <div className="mb-view-row"><span>Notes</span><strong>{view.notes || '-'}</strong></div>
               <div className="mb-view-row"><span>Entry By</span><strong>{view.userName || '-'}</strong></div>

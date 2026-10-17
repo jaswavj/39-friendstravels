@@ -1,0 +1,226 @@
+.exv-host {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  background: rgba(15, 23, 42, 0.45);
+  overflow: auto;
+  padding: 16px 12px 28px;
+}
+
+.exv-box {
+  max-width: 168mm;
+  margin: 0 auto;
+}
+
+.exv-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.exv-host .exv-sheet {
+  width: 148mm;
+  min-height: 200mm;
+  margin: 0 auto 14px;
+  padding: 8mm 8mm 7mm;
+  color: #122033;
+  font-family: "Segoe UI", Arial, sans-serif;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.18);
+}
+
+.exv-host .exv-frame {
+  position: relative;
+  border: 2px solid #1b365d;
+  min-height: 184mm;
+  display: flex;
+  flex-direction: column;
+}
+
+.exv-host .exv-paid {
+  position: absolute;
+  right: 16px;
+  bottom: 28px;
+  border: 3px solid #15803d;
+  color: #15803d;
+  font-size: 32px;
+  font-weight: 900;
+  letter-spacing: 5px;
+  padding: 2px 18px;
+  transform: rotate(-16deg);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.exv-host .exv-paid-inline {
+  color: #15803d;
+}
+
+.exv-host .exv-head {
+  text-align: center;
+  padding: 12px 14px 10px;
+  border-bottom: 2px solid #1b365d;
+  background: #f4f7fb;
+}
+
+.exv-host .exv-co {
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: #1b365d;
+  line-height: 1.2;
+}
+
+.exv-host .exv-addr {
+  margin-top: 8px;
+  font-size: 15px;
+  line-height: 1.45;
+  color: #334155;
+  white-space: pre-line;
+}
+
+.exv-host .exv-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1.5px solid #1b365d;
+  font-size: 16px;
+}
+
+.exv-host .exv-meta div {
+  padding: 10px 14px;
+}
+
+.exv-host .exv-meta div + div {
+  border-left: 1px solid #cbd5e1;
+}
+
+.exv-host .exv-meta span {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 3px;
+}
+
+.exv-host .exv-meta strong {
+  font-size: 17px;
+}
+
+.exv-host .exv-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.exv-host .exv-table th {
+  background: #1b365d;
+  color: #fff;
+  font-size: 13px;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  padding: 9px 10px;
+  text-align: left;
+  font-weight: 700;
+}
+
+.exv-host .exv-table th.num,
+.exv-host .exv-table td.num {
+  text-align: right;
+}
+
+.exv-host .exv-table th.sno,
+.exv-host .exv-table td.sno {
+  width: 38px;
+  text-align: center;
+}
+
+.exv-host .exv-table th.qty,
+.exv-host .exv-table td.qty {
+  width: 58px;
+  text-align: center;
+}
+
+.exv-host .exv-table th.amt,
+.exv-host .exv-table td.amt {
+  width: 92px;
+}
+
+.exv-host .exv-table td {
+  border-bottom: 1px solid #dbe3ee;
+  padding: 12px 10px;
+  vertical-align: top;
+}
+
+.exv-host .exv-part {
+  line-height: 1.6;
+}
+
+.exv-host .exv-part .to {
+  font-size: 18px;
+  font-weight: 800;
+  color: #1b365d;
+}
+
+.exv-host .exv-part .to em {
+  font-style: normal;
+  font-weight: 700;
+  color: #64748b;
+  font-size: 14px;
+  margin-right: 6px;
+}
+
+.exv-host .exv-part .line {
+  color: #334155;
+  font-size: 15px;
+}
+
+.exv-host .exv-part .k {
+  color: #64748b;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.exv-host .exv-fill td {
+  height: 32px;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.exv-host .exv-total-row td {
+  background: #f4f7fb;
+  border-top: 2px solid #1b365d;
+  border-bottom: none;
+  font-weight: 800;
+  font-size: 16px;
+  padding: 11px 10px;
+}
+
+.exv-host .exv-content {
+  margin: 12px 14px 16px;
+  border: 1px solid #cbd5e1;
+  min-height: 64px;
+  padding: 10px 12px;
+}
+
+.exv-host .exv-content span {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 6px;
+}
+
+.exv-host .exv-content p {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}

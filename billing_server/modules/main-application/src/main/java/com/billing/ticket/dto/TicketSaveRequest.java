@@ -19,10 +19,12 @@ public class TicketSaveRequest {
     private Double qty;
     private String busName;
     private String area;
+    private String seatNo;
     private Double amount;
     private Double cashPaid;
     private Double gpayPaid;
     private Double cardPaid;
+    private Double partyPaid;
     private Double credit;
     private String actualDate;
     private String actualTime;

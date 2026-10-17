@@ -133,20 +133,31 @@ public class StatisticsService {
         String prevStart = prev.atDay(1).format(ISO);
         String prevEnd = prev.atEndOfMonth().format(ISO);
 
-        double sales = sum("SELECT COALESCE(SUM(amount),0) FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) BETWEEN ? AND ?", start, end);
-        double lastSales = sum("SELECT COALESCE(SUM(amount),0) FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) BETWEEN ? AND ?", prevStart, prevEnd);
-        double expense = sum("SELECT COALESCE(SUM(amount),0) FROM expense_entry WHERE is_active = 1 AND DATE(exc_date_time) BETWEEN ? AND ?", start, end);
-        double lastExpense = sum("SELECT COALESCE(SUM(amount),0) FROM expense_entry WHERE is_active = 1 AND DATE(exc_date_time) BETWEEN ? AND ?", prevStart, prevEnd);
-        double todaySales = sum("SELECT COALESCE(SUM(amount),0) FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) = CURDATE()");
+        double sales = sum("SELECT COALESCE(SUM(GREATEST(amount - COALESCE(party_paid, 0), 0)),0) FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) BETWEEN ? AND ?", start, end);
+        double lastSales = sum("SELECT COALESCE(SUM(GREATEST(amount - COALESCE(party_paid, 0), 0)),0) FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) BETWEEN ? AND ?", prevStart, prevEnd);
+        double expense = sum(
+                "SELECT COALESCE(SUM(pl.bill_amount), 0) FROM prod_ledger pl "
+                        + "INNER JOIN expense_entry ee ON ee.id = pl.bill_id AND ee.is_active = 1 "
+                        + "WHERE pl.bill_type = 9 AND DATE(ee.exc_date_time) BETWEEN ? AND ?",
+                start, end
+        );
+        double lastExpense = sum(
+                "SELECT COALESCE(SUM(pl.bill_amount), 0) FROM prod_ledger pl "
+                        + "INNER JOIN expense_entry ee ON ee.id = pl.bill_id AND ee.is_active = 1 "
+                        + "WHERE pl.bill_type = 9 AND DATE(ee.exc_date_time) BETWEEN ? AND ?",
+                prevStart, prevEnd
+        );
+        double todaySales = sum("SELECT COALESCE(SUM(GREATEST(amount - COALESCE(party_paid, 0), 0)),0) FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) = CURDATE()");
         Integer todayBillsVal = jdbcTemplate.query(
-                "SELECT COUNT(*) FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) = CURDATE()",
+                "SELECT COUNT(*) FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) = CURDATE() "
+                        + "AND (amount - COALESCE(party_paid, 0)) > 0.01",
                 rs -> rs.next() ? rs.getInt(1) : 0
         );
         int todayBills = todayBillsVal == null ? 0 : todayBillsVal;
 
         Map<String, Double> salesByDay = new HashMap<>();
         jdbcTemplate.query(
-                "SELECT DATE(COALESCE(actual_date_time, entry_date_time)) AS d, COALESCE(SUM(amount),0) AS t FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) BETWEEN ? AND ? GROUP BY DATE(COALESCE(actual_date_time, entry_date_time))",
+                "SELECT DATE(COALESCE(actual_date_time, entry_date_time)) AS d, COALESCE(SUM(GREATEST(amount - COALESCE(party_paid, 0), 0)),0) AS t FROM ticket_entry WHERE is_active = 1 AND DATE(COALESCE(actual_date_time, entry_date_time)) BETWEEN ? AND ? GROUP BY DATE(COALESCE(actual_date_time, entry_date_time))",
                 (rs, i) -> {
                     salesByDay.put(asStr(rs.getObject("d")), rs.getDouble("t"));
                     return null;
@@ -155,7 +166,11 @@ public class StatisticsService {
         );
         Map<String, Double> expenseByDay = new HashMap<>();
         jdbcTemplate.query(
-                "SELECT DATE(exc_date_time) AS d, COALESCE(SUM(amount),0) AS t FROM expense_entry WHERE is_active = 1 AND DATE(exc_date_time) BETWEEN ? AND ? GROUP BY DATE(exc_date_time)",
+                "SELECT DATE(ee.exc_date_time) AS d, COALESCE(SUM(pl.bill_amount), 0) AS t "
+                        + "FROM prod_ledger pl "
+                        + "INNER JOIN expense_entry ee ON ee.id = pl.bill_id AND ee.is_active = 1 "
+                        + "WHERE pl.bill_type = 9 AND DATE(ee.exc_date_time) BETWEEN ? AND ? "
+                        + "GROUP BY DATE(ee.exc_date_time)",
                 (rs, i) -> {
                     expenseByDay.put(asStr(rs.getObject("d")), rs.getDouble("t"));
                     return null;
@@ -413,7 +428,7 @@ public class StatisticsService {
                 "SELECT COALESCE(SUM(s.in_amt),0) - COALESCE(SUM(s.out_amt),0) AS bal FROM ("
                         + " SELECT payable AS in_amt, 0.0 AS out_amt FROM prod_bill WHERE date < ?"
                         + " UNION ALL SELECT 0.0, net FROM prod_purchase WHERE ent_date < ? AND is_cancelled=0 AND is_po=0"
-                        + " UNION ALL SELECT 0.0, amount FROM expense_entry WHERE DATE(exc_date_time) < ? AND is_active=1"
+                        + " UNION ALL SELECT 0.0, GREATEST(amount - COALESCE(party_paid, 0), 0) FROM expense_entry WHERE DATE(exc_date_time) < ? AND is_active=1 AND GREATEST(amount - COALESCE(party_paid, 0), 0) > 0.01"
                         + " UNION ALL SELECT 0.0, pb.payable FROM prod_bill_cancel bc JOIN prod_bill pb ON pb.id=bc.bill_id WHERE bc.date < ?"
                         + " UNION ALL SELECT total, 0.0 FROM prod_purchase_return WHERE DATE(date_time) < ?"
                         + ") s",
@@ -426,8 +441,8 @@ public class StatisticsService {
                         + " pb.payable AS in_amt, 0.0 AS out_amt, pb.uid AS uid, 'Sale' AS type FROM prod_bill pb WHERE pb.date BETWEEN ? AND ?"
                         + " UNION ALL SELECT pp.ent_date, pp.ent_time, CONCAT('GRN #',pp.prno), 0.0, pp.net, pp.ent_uid, 'Purchase' "
                         + " FROM prod_purchase pp WHERE pp.ent_date BETWEEN ? AND ? AND pp.is_cancelled=0 AND pp.is_po=0"
-                        + " UNION ALL SELECT DATE(ee.exc_date_time), TIME(ee.exc_date_time), ee.content, 0.0, ee.amount, ee.uid, 'Expense' "
-                        + " FROM expense_entry ee WHERE DATE(ee.exc_date_time) BETWEEN ? AND ? AND ee.is_active=1"
+                        + " UNION ALL SELECT DATE(ee.exc_date_time), TIME(ee.exc_date_time), ee.content, 0.0, GREATEST(ee.amount - COALESCE(ee.party_paid, 0), 0), ee.uid, 'Expense' "
+                        + " FROM expense_entry ee WHERE DATE(ee.exc_date_time) BETWEEN ? AND ? AND ee.is_active=1 AND GREATEST(ee.amount - COALESCE(ee.party_paid, 0), 0) > 0.01"
                         + " UNION ALL SELECT bc.date, bc.time, CONCAT('Cancel #',pb2.bill_display), 0.0, pb2.payable, bc.uid, 'Cancel' "
                         + " FROM prod_bill_cancel bc JOIN prod_bill pb2 ON pb2.id=bc.bill_id WHERE bc.date BETWEEN ? AND ?"
                         + " UNION ALL SELECT DATE(pr.date_time), TIME(pr.date_time), CONCAT('Return #',COALESCE(pr.return_no,CAST(pr.id AS CHAR))), pr.total, 0.0, pr.uid, 'Purchase Return' "

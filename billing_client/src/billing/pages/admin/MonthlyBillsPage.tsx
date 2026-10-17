@@ -23,10 +23,12 @@ type Card = {
   qty?: number;
   busName?: string;
   area?: string;
+  seatNo?: string;
   amount: number;
   cashPaid: number;
   gpayPaid: number;
   cardPaid: number;
+  partyPaid?: number;
   credit: number;
   userName: string;
   actualDate?: string;
@@ -56,6 +58,7 @@ const payLabel = (row: Card) => {
   if (Number(row.cashPaid) > 0) parts.push('Cash');
   if (Number(row.gpayPaid) > 0) parts.push('GPay');
   if (Number(row.cardPaid) > 0) parts.push('Card');
+  if (Number(row.partyPaid) > 0) parts.push('Paid by party');
   if (Number(row.credit) > 0) parts.push('Credit');
   return parts.join(' + ') || 'Cash';
 };
@@ -239,12 +242,16 @@ const MonthlyBillsPage: React.FC = () => {
                   <div className="mb-view-row"><span>From</span><strong>{view.fromName || view.route}</strong></div>
                   <div className="mb-view-row"><span>To</span><strong>{view.toName || '-'}</strong></div>
                   <div className="mb-view-row"><span>Transport</span><strong>{view.transport || '-'}</strong></div>
+                  <div className="mb-view-row"><span>Bus Name</span><strong>{view.busName || '-'}</strong></div>
+                  <div className="mb-view-row"><span>Area</span><strong>{view.area || '-'}</strong></div>
+                  <div className="mb-view-row"><span>Seat No</span><strong>{view.seatNo || '-'}</strong></div>
                 </>
               )}
               <div className="mb-view-row"><span>Amount</span><strong>{inr(view.amount)}</strong></div>
               <div className="mb-view-row"><span>Cash</span><strong>{inr(view.cashPaid)}</strong></div>
               <div className="mb-view-row"><span>GPay</span><strong>{inr(view.gpayPaid)}</strong></div>
               <div className="mb-view-row"><span>Card</span><strong>{inr(view.cardPaid)}</strong></div>
+              <div className="mb-view-row"><span>Paid by party</span><strong>{inr(view.partyPaid)}</strong></div>
               <div className="mb-view-row"><span>Credit</span><strong>{inr(view.credit)}</strong></div>
               <div className="mb-view-row"><span>Notes</span><strong>{view.notes || '-'}</strong></div>
             </div>

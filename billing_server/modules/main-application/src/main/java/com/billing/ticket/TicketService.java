@@ -141,8 +141,8 @@ public class TicketService {
                 + "COALESCE(c.name, '') AS customerName, COALESCE(c.phone_number, '') AS phone, "
                 + "fp.name AS fromName, tp.name AS toName, COALESCE(t.transport, '') AS transport, "
                 + "COALESCE(t.notes, '') AS notes, COALESCE(t.qty, 0) AS qty, COALESCE(t.bus_name, '') AS busName, "
-                + "COALESCE(t.area, '') AS area, t.amount, t.cash_paid, t.gpay_paid, t.card_paid, "
-                + "t.credit_amount, COALESCE(u.user_name, '') AS userName, "
+                + "COALESCE(t.area, '') AS area, COALESCE(t.seat_no, '') AS seatNo, t.amount, t.cash_paid, t.gpay_paid, t.card_paid, "
+                + "COALESCE(t.party_paid, 0) AS party_paid, t.credit_amount, COALESCE(u.user_name, '') AS userName, "
                 + "COALESCE(t.entry_kind, 'TICKET') AS kind, COALESCE(it.name, '') AS incomeTypeName "
                 + "FROM ticket_entry t "
                 + "LEFT JOIN ticket_place fp ON fp.id = t.from_place_id "
@@ -157,10 +157,10 @@ public class TicketService {
                 + "DATE_FORMAT(TIMESTAMP(d.date, COALESCE(d.time, '00:00:00')), '%Y-%m-%d %H:%i') AS collectedDate, "
                 + "COALESCE(c.name, '') AS customerName, COALESCE(c.phone_number, '') AS phone, "
                 + "CAST(NULL AS CHAR) AS fromName, CAST(NULL AS CHAR) AS toName, '' AS transport, "
-                + "COALESCE(d.notes, '') AS notes, 0 AS qty, '' AS busName, '' AS area, d.amount, d.cash_paid, "
+                + "COALESCE(d.notes, '') AS notes, 0 AS qty, '' AS busName, '' AS area, '' AS seatNo, d.amount, d.cash_paid, "
                 + "CASE WHEN d.pay_type = 1 THEN d.bank_paid ELSE 0 END AS gpay_paid, "
                 + "CASE WHEN d.pay_type <> 1 THEN d.bank_paid ELSE 0 END AS card_paid, "
-                + "0 AS credit_amount, COALESCE(u.user_name, '') AS userName, "
+                + "0 AS party_paid, 0 AS credit_amount, COALESCE(u.user_name, '') AS userName, "
                 + "'COLLECTION' AS kind, 'Due Collection' AS incomeTypeName "
                 + "FROM prod_bill_due d "
                 + "LEFT JOIN customers c ON c.id = d.customer_id "
@@ -216,10 +216,12 @@ public class TicketService {
                     row.put("qty", rs.getDouble("qty"));
                     row.put("busName", rs.getString("busName"));
                     row.put("area", rs.getString("area"));
+                    row.put("seatNo", rs.getString("seatNo"));
                     row.put("amount", rs.getDouble("amount"));
                     row.put("cashPaid", rs.getDouble("cash_paid"));
                     row.put("gpayPaid", rs.getDouble("gpay_paid"));
                     row.put("cardPaid", rs.getDouble("card_paid"));
+                    row.put("partyPaid", rs.getDouble("party_paid"));
                     row.put("credit", rs.getDouble("credit_amount"));
                     row.put("userName", rs.getString("userName"));
                     return row;
@@ -252,34 +254,18 @@ public class TicketService {
     public Map<String, Object> bookingReport(String from, String to, boolean dueOnly, int page, int size) {
         String fromDate = required(from, "From date is required");
         String toDate = required(to, "To date is required");
-        String settled = "SELECT x.id, DATE_FORMAT(x.entry_date_time, '%Y-%m-%d %H:%i') AS bookingDate, "
-                + "x.customerName, x.phone, x.area, x.busName, x.amount, "
-                + "ROUND(x.ticketPaid + LEAST(x.credit, GREATEST(0, COALESCE(d.collected, 0) - COALESCE(o.oldDue, 0) - x.creditBefore)), 2) AS paid, "
-                + "ROUND(GREATEST(0, x.credit - LEAST(x.credit, GREATEST(0, COALESCE(d.collected, 0) - COALESCE(o.oldDue, 0) - x.creditBefore))), 2) AS balance, "
-                + "x.notes, x.userName "
-                + "FROM ("
-                + "SELECT t.id, t.customer_id, t.entry_date_time, COALESCE(c.name, '') AS customerName, "
-                + "COALESCE(c.phone_number, '') AS phone, COALESCE(t.area, '') AS area, "
+        String settled = "SELECT t.id, DATE_FORMAT(t.entry_date_time, '%Y-%m-%d %H:%i') AS bookingDate, "
+                + "COALESCE(c.name, '') AS customerName, COALESCE(c.phone_number, '') AS phone, "
+                + "COALESCE(t.area, '') AS area, COALESCE(t.seat_no, '') AS seatNo, "
                 + "COALESCE(NULLIF(TRIM(t.bus_name), ''), t.transport, '') AS busName, t.amount, "
-                + "(COALESCE(t.cash_paid, 0) + COALESCE(t.gpay_paid, 0) + COALESCE(t.card_paid, 0)) AS ticketPaid, "
-                + "COALESCE(t.credit_amount, 0) AS credit, COALESCE(t.notes, '') AS notes, "
-                + "COALESCE(u.user_name, '') AS userName, COALESCE(t.entry_kind, 'TICKET') AS kind, "
-                + "SUM(COALESCE(t.credit_amount, 0)) OVER (PARTITION BY t.customer_id ORDER BY t.entry_date_time, t.id) "
-                + "- COALESCE(t.credit_amount, 0) AS creditBefore "
+                + "ROUND(t.amount - COALESCE(t.due_balance, t.credit_amount, 0), 2) AS paid, "
+                + "ROUND(COALESCE(t.due_balance, t.credit_amount, 0), 2) AS balance, "
+                + "COALESCE(t.notes, '') AS notes, COALESCE(u.user_name, '') AS userName "
                 + "FROM ticket_entry t "
                 + "LEFT JOIN customers c ON c.id = t.customer_id "
                 + "LEFT JOIN users u ON u.id = t.uid "
-                + "WHERE t.is_active = 1"
-                + ") x "
-                + "LEFT JOIN ("
-                + "SELECT customer_id, SUM(amount) AS collected FROM prod_bill_due "
-                + "WHERE COALESCE(txn_type, 'COLLECTION') = 'COLLECTION' GROUP BY customer_id"
-                + ") d ON d.customer_id = x.customer_id "
-                + "LEFT JOIN ("
-                + "SELECT customer_id, SUM(amount) AS oldDue FROM prod_bill_due "
-                + "WHERE txn_type = 'OLD_DUE' GROUP BY customer_id"
-                + ") o ON o.customer_id = x.customer_id "
-                + "WHERE COALESCE(x.kind, 'TICKET') = 'TICKET' AND DATE(x.entry_date_time) BETWEEN ? AND ?";
+                + "WHERE t.is_active = 1 AND COALESCE(t.entry_kind, 'TICKET') = 'TICKET' "
+                + "AND DATE(t.entry_date_time) BETWEEN ? AND ?";
         String sql = "SELECT * FROM (" + settled + ") r"
                 + (dueOnly ? " WHERE r.balance > 0.001" : "")
                 + " ORDER BY r.bookingDate, r.id";
@@ -293,6 +279,7 @@ public class TicketService {
                     row.put("customerName", rs.getString("customerName"));
                     row.put("phone", rs.getString("phone"));
                     row.put("area", rs.getString("area"));
+                    row.put("seatNo", rs.getString("seatNo"));
                     row.put("busName", rs.getString("busName"));
                     row.put("amount", rs.getDouble("amount"));
                     row.put("paid", rs.getDouble("paid"));
@@ -336,10 +323,10 @@ public class TicketService {
         String reason = required(request == null ? null : request.getReason(), "Reason for cancellation is required");
         Map<String, Object> ticket = load(id);
         long customerId = ((Number) ticket.get("customerId")).longValue();
-        double credit = num(ticket.get("credit"));
+        double due = num(ticket.get("dueBalance"));
         double amount = num(ticket.get("amount"));
         String route = str(ticket.get("route"));
-        adjustCredit(customerId, -credit);
+        adjustCredit(customerId, -due);
         int updated = jdbcTemplate.update(
                 "UPDATE ticket_entry SET is_active = 0 WHERE id = ? AND is_active = 1",
                 id
@@ -350,7 +337,7 @@ public class TicketService {
         jdbcTemplate.update("DELETE FROM prod_ledger WHERE bill_type = 13 AND bill_id = ?", id);
         logTicket(id, route, "CANCEL",
                 "Cancelled · Amount " + rupee(amount)
-                        + (credit > 0 ? " · Credit reversed " + rupee(credit) : "")
+                        + (due > 0 ? " · Credit reversed " + rupee(due) : "")
                         + " · Reason: " + reason,
                 uid);
     }
@@ -361,6 +348,7 @@ public class TicketService {
         ParsedTicket next = parse(request);
         long oldCustomerId = ((Number) old.get("customerId")).longValue();
         double oldCredit = num(old.get("credit"));
+        double oldDue = num(old.get("dueBalance"));
         double oldAmount = num(old.get("amount"));
         double oldCash = num(old.get("cashPaid"));
         double oldGpay = num(old.get("gpayPaid"));
@@ -376,29 +364,35 @@ public class TicketService {
         Long toId = next.income ? null : resolvePlace(request.getToPlaceId(), request.getToName(), "To");
         Long incomeTypeId = next.income ? resolveIncomeType(request.getIncomeTypeId(), request.getIncomeTypeName()) : null;
 
+        double collectedLater = Math.max(0, money(oldCredit - oldDue));
+        if (next.credit + 0.009 < collectedLater) {
+            throw new RuntimeException("This bill already has collections of " + rupee(collectedLater)
+                    + ". Credit cannot be less than the collected amount.");
+        }
+        double nextDue = money(Math.max(0, next.credit - collectedLater));
         double balance;
         if (oldCustomerId != customerId) {
-            adjustCredit(oldCustomerId, -oldCredit);
-            balance = adjustCredit(customerId, next.credit);
+            adjustCredit(oldCustomerId, -oldDue);
+            balance = adjustCredit(customerId, nextDue);
         } else {
-            balance = adjustCredit(customerId, next.credit - oldCredit);
+            balance = adjustCredit(customerId, nextDue - oldDue);
         }
 
         int updated = jdbcTemplate.update(
                 "UPDATE ticket_entry SET customer_id = ?, from_place_id = ?, to_place_id = ?, transport = ?, notes = ?, "
-                        + "qty = ?, bus_name = ?, area = ?, "
-                        + "amount = ?, cash_paid = ?, gpay_paid = ?, card_paid = ?, credit_amount = ?, "
+                        + "qty = ?, bus_name = ?, area = ?, seat_no = ?, "
+                        + "amount = ?, cash_paid = ?, gpay_paid = ?, card_paid = ?, party_paid = ?, credit_amount = ?, due_balance = ?, "
                         + "entry_date_time = ?, actual_date_time = NOW(), uid = ?, "
                         + "entry_kind = ?, income_type_id = ? "
                         + "WHERE id = ? AND is_active = 1",
-                customerId, fromId, toId, next.transport, next.notes, next.qty, next.busName, next.area,
-                next.amount, next.cash, next.gpay, next.card,
-                next.credit, next.dateTime, uid, next.income ? "INCOME" : "TICKET", incomeTypeId, id
+                customerId, fromId, toId, next.transport, next.notes, next.qty, next.busName, next.area, next.seatNo,
+                next.amount, next.cash, next.gpay, next.card, next.party,
+                next.credit, nextDue, next.dateTime, uid, next.income ? "INCOME" : "TICKET", incomeTypeId, id
         );
         if (updated == 0) {
             throw new RuntimeException("Ticket not found");
         }
-        writeLedger(id, customerId, next.amount, next.cash, next.gpay, next.card, uid);
+        writeLedger(id, customerId, Math.max(0, next.amount - next.party), next.cash, next.gpay, next.card, uid);
 
         String route = label(next);
         List<String> changes = new ArrayList<>();
@@ -415,6 +409,10 @@ public class TicketService {
         } else if (!oldTransport.equalsIgnoreCase(next.transport)) {
             changes.add("Transport " + oldTransport + " → " + next.transport);
         }
+        if (!str(old.get("seatNo")).equalsIgnoreCase(next.seatNo)) {
+            changes.add("Seat " + (str(old.get("seatNo")).isEmpty() ? "-" : str(old.get("seatNo")))
+                    + " → " + (next.seatNo.isEmpty() ? "-" : next.seatNo));
+        }
         if (Math.abs(oldAmount - next.amount) > 0.01) {
             changes.add("Amount " + rupee(oldAmount) + " → " + rupee(next.amount));
         }
@@ -426,6 +424,9 @@ public class TicketService {
         }
         if (Math.abs(oldCard - next.card) > 0.01) {
             changes.add("Card " + rupee(oldCard) + " → " + rupee(next.card));
+        }
+        if (Math.abs(num(old.get("partyPaid")) - next.party) > 0.01) {
+            changes.add("Paid by party " + rupee(num(old.get("partyPaid"))) + " → " + rupee(next.party));
         }
         if (Math.abs(oldCredit - next.credit) > 0.01) {
             changes.add("Credit " + rupee(oldCredit) + " → " + rupee(next.credit));
@@ -463,9 +464,9 @@ public class TicketService {
         KeyHolder keys = new GeneratedKeyHolder();
         jdbcTemplate.update(con -> {
             PreparedStatement ps = con.prepareStatement(
-                    "INSERT INTO ticket_entry (customer_id, from_place_id, to_place_id, transport, notes, qty, bus_name, area, amount, "
-                            + "cash_paid, gpay_paid, card_paid, credit_amount, entry_date_time, actual_date_time, uid, is_active, entry_kind, income_type_id) "
-                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, 1, ?, ?)",
+                    "INSERT INTO ticket_entry (customer_id, from_place_id, to_place_id, transport, notes, qty, bus_name, area, seat_no, amount, "
+                            + "cash_paid, gpay_paid, card_paid, party_paid, credit_amount, due_balance, entry_date_time, actual_date_time, uid, is_active, entry_kind, income_type_id) "
+                            + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, 1, ?, ?)",
                     Statement.RETURN_GENERATED_KEYS
             );
             ps.setLong(1, customerId);
@@ -476,15 +477,18 @@ public class TicketService {
             ps.setDouble(6, next.qty);
             ps.setString(7, next.busName);
             ps.setString(8, next.area);
-            ps.setDouble(9, next.amount);
-            ps.setDouble(10, next.cash);
-            ps.setDouble(11, next.gpay);
-            ps.setDouble(12, next.card);
-            ps.setDouble(13, next.credit);
-            ps.setString(14, next.dateTime);
-            ps.setLong(15, uid);
-            ps.setString(16, next.income ? "INCOME" : "TICKET");
-            setLongOrNull(ps, 17, incomeTypeId);
+            ps.setString(9, next.seatNo);
+            ps.setDouble(10, next.amount);
+            ps.setDouble(11, next.cash);
+            ps.setDouble(12, next.gpay);
+            ps.setDouble(13, next.card);
+            ps.setDouble(14, next.party);
+            ps.setDouble(15, next.credit);
+            ps.setDouble(16, next.credit);
+            ps.setString(17, next.dateTime);
+            ps.setLong(18, uid);
+            ps.setString(19, next.income ? "INCOME" : "TICKET");
+            setLongOrNull(ps, 20, incomeTypeId);
             return ps;
         }, keys);
         Number key = keys.getKey();
@@ -492,7 +496,7 @@ public class TicketService {
             throw new RuntimeException("Failed to save ticket");
         }
 
-        writeLedger(key.longValue(), customerId, next.amount, next.cash, next.gpay, next.card, uid);
+        writeLedger(key.longValue(), customerId, Math.max(0, next.amount - next.party), next.cash, next.gpay, next.card, uid);
         String route = label(next);
         logTicket(key.longValue(), route, "CREATE",
                 (next.income ? "Other income · " : "")
@@ -645,7 +649,8 @@ public class TicketService {
                         + "t.from_place_id, fp.name AS fromName, t.to_place_id, tp.name AS toName, "
                         + "COALESCE(t.transport, '') AS transport, COALESCE(t.notes, '') AS notes, "
                         + "COALESCE(t.qty, 0) AS qty, COALESCE(t.bus_name, '') AS busName, COALESCE(t.area, '') AS area, "
-                        + "t.amount, t.cash_paid, t.gpay_paid, t.card_paid, t.credit_amount, "
+                        + "COALESCE(t.seat_no, '') AS seatNo, "
+                        + "t.amount, t.cash_paid, t.gpay_paid, t.card_paid, COALESCE(t.party_paid, 0) AS party_paid, t.credit_amount, t.due_balance, "
                         + "DATE_FORMAT(COALESCE(t.actual_date_time, t.entry_date_time), '%Y-%m-%d') AS actualDate, "
                         + "DATE_FORMAT(COALESCE(t.actual_date_time, t.entry_date_time), '%H:%i') AS actualTime, "
                         + "DATE_FORMAT(t.entry_date_time, '%Y-%m-%d') AS entryDate, "
@@ -681,11 +686,14 @@ public class TicketService {
                     row.put("qty", rs.getDouble("qty"));
                     row.put("busName", rs.getString("busName"));
                     row.put("area", rs.getString("area"));
+                    row.put("seatNo", rs.getString("seatNo"));
                     row.put("amount", rs.getDouble("amount"));
                     row.put("cashPaid", rs.getDouble("cash_paid"));
                     row.put("gpayPaid", rs.getDouble("gpay_paid"));
                     row.put("cardPaid", rs.getDouble("card_paid"));
+                    row.put("partyPaid", rs.getDouble("party_paid"));
                     row.put("credit", rs.getDouble("credit_amount"));
+                    row.put("dueBalance", rs.getDouble("due_balance"));
                     row.put("actualDate", rs.getString("actualDate"));
                     row.put("actualTime", rs.getString("actualTime"));
                     row.put("entryDate", rs.getString("entryDate"));
@@ -718,6 +726,7 @@ public class TicketService {
         }
         next.busName = request.getBusName() == null ? "" : request.getBusName().trim();
         next.area = request.getArea() == null ? "" : request.getArea().trim();
+        next.seatNo = request.getSeatNo() == null ? "" : request.getSeatNo().trim();
         if (next.income) {
             next.incomeTypeName = required(request.getIncomeTypeName(), "Income type is required");
             next.transport = "";
@@ -732,15 +741,16 @@ public class TicketService {
         next.cash = money(request.getCashPaid());
         next.gpay = money(request.getGpayPaid());
         next.card = money(request.getCardPaid());
+        next.party = money(request.getPartyPaid());
         next.credit = money(request.getCredit());
         if (next.amount <= 0) {
             throw new RuntimeException(next.income ? "Please enter a valid income amount" : "Please enter a valid ticket amount");
         }
-        if (next.cash < 0 || next.gpay < 0 || next.card < 0 || next.credit < 0) {
+        if (next.cash < 0 || next.gpay < 0 || next.card < 0 || next.party < 0 || next.credit < 0) {
             throw new RuntimeException("Payment amounts cannot be negative");
         }
-        if (Math.abs((next.cash + next.gpay + next.card + next.credit) - next.amount) > 0.01) {
-            throw new RuntimeException("Cash + GPay + Card + Credit must equal the amount");
+        if (Math.abs((next.cash + next.gpay + next.card + next.party + next.credit) - next.amount) > 0.01) {
+            throw new RuntimeException("Cash + GPay + Card + Credit + Paid by party must equal the amount");
         }
         next.dateTime = entryDateTime(request.getEntryDate(), request.getEntryTime());
         return next;
@@ -749,6 +759,10 @@ public class TicketService {
     private void writeLedger(long ticketId, long customerId, double amount, double cash, double gpay, double card,
                              Long uid) {
         double bank = money(gpay + card);
+        if (amount <= 0.005 && cash <= 0.005 && bank <= 0.005) {
+            jdbcTemplate.update("DELETE FROM prod_ledger WHERE bill_type = 13 AND bill_id = ?", ticketId);
+            return;
+        }
         int payMode = cash > 0 && bank > 0 ? 3 : bank > 0 ? 2 : 1;
         int payType = gpay > 0 && card > 0 ? 3 : gpay > 0 ? 1 : card > 0 ? 2 : 0;
         int n = jdbcTemplate.update(
@@ -866,12 +880,14 @@ public class TicketService {
         double qty;
         String busName;
         String area;
+        String seatNo;
         String fromName;
         String toName;
         double amount;
         double cash;
         double gpay;
         double card;
+        double party;
         double credit;
         String dateTime;
     }

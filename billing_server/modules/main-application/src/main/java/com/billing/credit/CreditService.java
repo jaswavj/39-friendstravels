@@ -118,10 +118,11 @@ public class CreditService {
 
         List<TimelineRow> timeline = new ArrayList<>();
         List<TimelineRow> tickets = jdbcTemplate.query(
-                "SELECT t.id, t.amount, t.cash_paid, t.gpay_paid, t.card_paid, t.credit_amount, "
+                "SELECT t.id, t.amount, t.cash_paid, t.gpay_paid, t.card_paid, t.credit_amount, t.due_balance, "
                         + "DATE(t.entry_date_time) AS tdate, TIME(t.entry_date_time) AS ttime, "
                         + "COALESCE(u.user_name, '') AS user_name, fp.name AS from_name, tp.name AS to_name, "
                         + "COALESCE(t.transport, '') AS transport, COALESCE(t.notes, '') AS notes, "
+                        + "COALESCE(t.seat_no, '') AS seat_no, "
                         + "COALESCE(t.entry_kind, 'TICKET') AS kind, COALESCE(it.name, '') AS income_type "
                         + "FROM ticket_entry t "
                         + "LEFT JOIN ticket_place fp ON fp.id = t.from_place_id "
@@ -134,13 +135,20 @@ public class CreditService {
                     String route = income ? nz(rs.getString("income_type")) : nz(rs.getString("from_name")) + " → " + nz(rs.getString("to_name"));
                     String transport = income ? "Other income" : nz(rs.getString("transport"));
                     String note = nz(rs.getString("notes"));
-                    String extra = transport.isEmpty() ? note : note.isEmpty() ? transport : transport + " · " + note;
+                    String seat = income ? "" : nz(rs.getString("seat_no"));
+                    if (!seat.isEmpty()) {
+                        seat = "Seat " + seat;
+                    }
+                    String extra = transport;
+                    if (!seat.isEmpty()) extra = extra.isEmpty() ? seat : extra + " · " + seat;
+                    if (!note.isEmpty()) extra = extra.isEmpty() ? note : extra + " · " + note;
+                    double due = rs.getDouble("due_balance");
                     TimelineRow row = new TimelineRow();
                     row.setType(income ? "OTHER_INCOME" : "TICKET");
                     row.setDocNo(route);
                     row.setAmount(rs.getDouble("amount"));
-                    row.setPaid(rs.getDouble("cash_paid") + rs.getDouble("gpay_paid") + rs.getDouble("card_paid"));
-                    row.setPending(rs.getDouble("credit_amount"));
+                    row.setPaid(rs.getDouble("amount") - due);
+                    row.setPending(due);
                     row.setDate(asDate(rs.getDate("tdate")));
                     row.setTime(asTime(rs.getTime("ttime")));
                     row.setUserName(nz(rs.getString("user_name")));
@@ -152,13 +160,7 @@ public class CreditService {
         );
         timeline.addAll(tickets);
         data.setCount(tickets.size());
-        timeline.addAll(dueRows(
-                "SELECT a.amount, a.cash_paid, a.bank_paid, a.balance, a.date, a.time, b.user_name, " +
-                        "COALESCE(a.txn_type, 'COLLECTION') AS txn_type, COALESCE(a.notes, '') AS notes " +
-                        "FROM prod_bill_due a JOIN users b ON b.id = a.uid " +
-                        "WHERE a.customer_id = ? ORDER BY a.date DESC, a.time DESC, a.id DESC",
-                customerId
-        ));
+        timeline.addAll(customerDueRows(customerId));
         sortTimeline(timeline);
         data.setTimeline(timeline);
         return data;
@@ -270,14 +272,7 @@ public class CreditService {
             );
         }
         if ("COLLECTION".equals(type)) {
-            return collection(
-                    customerId, 0L, request, uid,
-                    "SELECT balance FROM customer_account WHERE customer_id = ? FOR UPDATE",
-                    "INSERT INTO prod_bill_due (customer_id, amount, cash_paid, bank_paid, balance, pay_mode, pay_type, txn_type, notes, uid, date, time) " +
-                            "VALUES (?, ?, ?, ?, ?, ?, ?, 'COLLECTION', NULL, ?, CURRENT_DATE(), CURRENT_TIME())",
-                    "UPDATE customer_account SET balance = ? WHERE customer_id = ?",
-                    2, "No account balance due to collect."
-            );
+            return collectCustomerBill(customerId, request, uid);
         }
         throw new RuntimeException("Invalid entry type.");
     }
@@ -370,6 +365,101 @@ public class CreditService {
         insertLedger(ledgerType, dueId, customerId, supplierId, payMode, amount, cash, bank, payType, uid);
         jdbcTemplate.update(updateSql, newAdvance, partyId);
         return result("ADVANCE", currentBalance, newAdvance);
+    }
+
+    private AccountEntryResult collectCustomerBill(Long customerId, AccountEntryRequest request, Long uid) {
+        double currentBalance = lockBalance(
+                "SELECT balance FROM customer_account WHERE customer_id = ? FOR UPDATE",
+                customerId
+        );
+        if (currentBalance <= 0) {
+            throw new RuntimeException("No account balance due to collect.");
+        }
+        double cash = nz(request.getCashPaid());
+        double bank = nz(request.getBankPaid());
+        double amount = cash + bank;
+        if (amount <= 0) {
+            throw new RuntimeException("Payment amount must be greater than zero.");
+        }
+        Integer openBills = jdbcTemplate.query(
+                "SELECT COUNT(*) FROM ticket_entry WHERE customer_id = ? AND is_active = 1 AND due_balance > 0.005",
+                rs -> rs.next() ? rs.getInt(1) : 0,
+                customerId
+        );
+        int dueBillCount = openBills == null ? 0 : openBills;
+        Long ticketId = request.getTicketId();
+        if (dueBillCount > 0 && (ticketId == null || ticketId <= 0)) {
+            throw new RuntimeException("Select a bill to collect.");
+        }
+        if (ticketId == null || ticketId <= 0) {
+            return collection(
+                    customerId, 0L, request, uid,
+                    "SELECT balance FROM customer_account WHERE customer_id = ? FOR UPDATE",
+                    "INSERT INTO prod_bill_due (customer_id, amount, cash_paid, bank_paid, balance, pay_mode, pay_type, txn_type, notes, uid, date, time) " +
+                            "VALUES (?, ?, ?, ?, ?, ?, ?, 'COLLECTION', NULL, ?, CURRENT_DATE(), CURRENT_TIME())",
+                    "UPDATE customer_account SET balance = ? WHERE customer_id = ?",
+                    2, "No account balance due to collect."
+            );
+        }
+        List<Map<String, Object>> bills = jdbcTemplate.queryForList(
+                "SELECT t.id, t.due_balance, t.amount, COALESCE(t.entry_kind, 'TICKET') AS kind, "
+                        + "fp.name AS from_name, tp.name AS to_name, COALESCE(it.name, '') AS income_type "
+                        + "FROM ticket_entry t "
+                        + "LEFT JOIN ticket_place fp ON fp.id = t.from_place_id "
+                        + "LEFT JOIN ticket_place tp ON tp.id = t.to_place_id "
+                        + "LEFT JOIN income_type it ON it.id = t.income_type_id "
+                        + "WHERE t.id = ? AND t.customer_id = ? AND t.is_active = 1 FOR UPDATE",
+                ticketId, customerId
+        );
+        if (bills.isEmpty()) {
+            throw new RuntimeException("Selected bill was not found.");
+        }
+        Map<String, Object> bill = bills.get(0);
+        double billDue = toDouble(bill.get("due_balance"));
+        if (billDue <= 0.005) {
+            throw new RuntimeException("This bill has no remaining balance.");
+        }
+        if (amount > billDue + 0.01) {
+            throw new RuntimeException("Amount cannot exceed this bill's balance of ₹"
+                    + String.format("%.2f", billDue) + ".");
+        }
+        if (amount > currentBalance + 0.01) {
+            throw new RuntimeException("Amount cannot exceed account balance of ₹"
+                    + String.format("%.2f", currentBalance) + ".");
+        }
+        double newBillDue = Math.max(0, billDue - amount);
+        double newBalance = Math.max(0, currentBalance - amount);
+        int payMode = nzInt(request.getPayMode(), 1);
+        int payType = nzInt(request.getPayType(), 0);
+        boolean income = "INCOME".equalsIgnoreCase(nz(String.valueOf(bill.get("kind"))));
+        String billLabel = income
+                ? nz(String.valueOf(bill.get("income_type")))
+                : nz(String.valueOf(bill.get("from_name"))) + " → " + nz(String.valueOf(bill.get("to_name")));
+        String notes = request.getNotes() != null && !request.getNotes().trim().isEmpty()
+                ? request.getNotes().trim()
+                : "Bill: " + billLabel;
+        jdbcTemplate.update("UPDATE ticket_entry SET due_balance = ? WHERE id = ?", newBillDue, ticketId);
+        long dueId = insertDue(
+                "INSERT INTO prod_bill_due (customer_id, ticket_id, amount, cash_paid, bank_paid, balance, pay_mode, pay_type, txn_type, notes, uid, date, time) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'COLLECTION', ?, ?, CURRENT_DATE(), CURRENT_TIME())",
+                ps -> {
+                    ps.setLong(1, customerId);
+                    ps.setLong(2, ticketId);
+                    ps.setDouble(3, amount);
+                    ps.setDouble(4, cash);
+                    ps.setDouble(5, bank);
+                    ps.setDouble(6, newBalance);
+                    ps.setInt(7, payMode);
+                    ps.setInt(8, payType);
+                    ps.setString(9, notes);
+                    ps.setLong(10, uid);
+                }
+        );
+        insertLedger(2, dueId, customerId, 0L, payMode, amount, cash, bank, payType, uid);
+        jdbcTemplate.update("UPDATE customer_account SET balance = ? WHERE customer_id = ?", newBalance, customerId);
+        AccountEntryResult saved = result("COLLECTION", newBalance, null);
+        saved.setNewBillBalance(newBillDue);
+        return saved;
     }
 
     private AccountEntryResult collection(Long customerId, Long supplierId, AccountEntryRequest request, Long uid,
@@ -473,6 +563,56 @@ public class CreditService {
         row.setPhone(rs.getString(3) == null || rs.getString(3).isBlank() ? "-" : rs.getString(3));
         row.setBalance(rs.getDouble(4));
         return row;
+    }
+
+    private List<TimelineRow> customerDueRows(Long customerId) {
+        return jdbcTemplate.query(
+                "SELECT a.amount, a.cash_paid, a.bank_paid, a.balance, a.date, a.time, b.user_name, "
+                        + "COALESCE(a.txn_type, 'COLLECTION') AS txn_type, COALESCE(a.notes, '') AS notes, "
+                        + "a.ticket_id, COALESCE(t.entry_kind, 'TICKET') AS kind, "
+                        + "fp.name AS from_name, tp.name AS to_name, COALESCE(it.name, '') AS income_type "
+                        + "FROM prod_bill_due a "
+                        + "JOIN users b ON b.id = a.uid "
+                        + "LEFT JOIN ticket_entry t ON t.id = a.ticket_id "
+                        + "LEFT JOIN ticket_place fp ON fp.id = t.from_place_id "
+                        + "LEFT JOIN ticket_place tp ON tp.id = t.to_place_id "
+                        + "LEFT JOIN income_type it ON it.id = t.income_type_id "
+                        + "WHERE a.customer_id = ? ORDER BY a.date DESC, a.time DESC, a.id DESC",
+                (rs, i) -> {
+                    String txnType = nz(rs.getString("txn_type")).trim().toUpperCase();
+                    if (txnType.isEmpty()) {
+                        txnType = "COLLECTION";
+                    }
+                    double amount = rs.getDouble("amount");
+                    double cash = rs.getDouble("cash_paid");
+                    double bank = rs.getDouble("bank_paid");
+                    double balance = rs.getDouble("balance");
+                    long ticketId = rs.getLong("ticket_id");
+                    boolean income = "INCOME".equalsIgnoreCase(nz(rs.getString("kind")));
+                    String billLabel = ticketId > 0
+                            ? (income ? nz(rs.getString("income_type")) : nz(rs.getString("from_name")) + " → " + nz(rs.getString("to_name")))
+                            : "";
+                    TimelineRow row = new TimelineRow();
+                    row.setType(txnType);
+                    row.setDocNo(billLabel);
+                    row.setNotes(nz(rs.getString("notes")));
+                    if ("OLD_DUE".equals(txnType)) {
+                        row.setAmount(amount);
+                        row.setPaid(null);
+                        row.setPending(balance);
+                    } else {
+                        row.setAmount(amount);
+                        row.setPaid(cash + bank);
+                        row.setPending(balance);
+                    }
+                    row.setDate(asDate(rs.getDate("date")));
+                    row.setTime(asTime(rs.getTime("time")));
+                    row.setUserName(nz(rs.getString("user_name")));
+                    row.setRefId(ticketId > 0 ? ticketId : -1L);
+                    return row;
+                },
+                customerId
+        );
     }
 
     private List<TimelineRow> dueRows(String sql, Long partyId) {

@@ -12,6 +12,10 @@ public class ExpenseReportRow {
     private Double qty;
     private String busName;
     private String area;
+    private String customerName;
+    private String customerPhone;
     private Double amount;
+    private Double partyPaid;
+    private Double balance;
     private String userName;
 }

@@ -39,10 +39,12 @@ type TicketDetail = {
   qty?: number;
   busName?: string;
   area?: string;
+  seatNo?: string;
   amount: number;
   cashPaid: number;
   gpayPaid: number;
   cardPaid: number;
+  partyPaid?: number;
   credit: number;
   actualDate?: string;
   actualTime?: string;
@@ -66,10 +68,12 @@ const emptyForm = (kind: Kind = 'TICKET') => ({
   qty: '',
   busName: '',
   area: '',
+  seatNo: '',
   amount: '',
   cashPaid: '0.00',
   gpayPaid: '0.00',
   cardPaid: '0.00',
+  partyPaid: '0.00',
   credit: '0.00',
   entryDate: today(),
   entryTime: nowTime(),
@@ -91,10 +95,12 @@ const formFromTicket = (t: TicketDetail) => ({
   qty: t.qty != null && Number(t.qty) !== 0 ? String(t.qty) : '',
   busName: t.busName || '',
   area: t.area || '',
+  seatNo: t.seatNo || '',
   amount: n2(Number(t.amount || 0)),
   cashPaid: n2(Number(t.cashPaid || 0)),
   gpayPaid: n2(Number(t.gpayPaid || 0)),
   cardPaid: n2(Number(t.cardPaid || 0)),
+  partyPaid: n2(Number(t.partyPaid || 0)),
   credit: n2(Number(t.credit || 0)),
   entryDate: t.entryDate || today(),
   entryTime: t.entryTime || nowTime(),
@@ -264,13 +270,14 @@ const TicketEntryPage: React.FC = () => {
       cashPaid: n2(amt),
       gpayPaid: '0.00',
       cardPaid: '0.00',
+      partyPaid: '0.00',
       credit: '0.00',
     }));
   };
 
   const shown = (raw: string, capped: number, amount: number) => (num(raw) > amount ? n2(capped) : raw);
 
-  const onPay = (field: 'cashPaid' | 'gpayPaid' | 'cardPaid', value: string) => {
+  const onPay = (field: 'cashPaid' | 'gpayPaid' | 'cardPaid' | 'credit' | 'partyPaid', value: string) => {
     setForm((f) => {
       const amt = num(f.amount);
       const typed = Math.min(amt, Math.max(0, num(value)));
@@ -278,59 +285,35 @@ const TicketEntryPage: React.FC = () => {
       let gpay = num(f.gpayPaid);
       let card = num(f.cardPaid);
       let credit = num(f.credit);
-      if (field === 'cashPaid') {
-        cash = typed;
-        const left = Math.max(0, amt - cash);
-        if (gpay + card > left) {
-          gpay = Math.min(gpay, left);
-          card = Math.min(card, Math.max(0, left - gpay));
-        }
-        credit = Math.max(0, Math.round((amt - cash - gpay - card) * 100) / 100);
-      } else {
-        if (field === 'gpayPaid') gpay = typed;
-        if (field === 'cardPaid') card = typed;
-        if (gpay + card > amt) {
-          if (field === 'gpayPaid') card = Math.max(0, amt - gpay);
-          else gpay = Math.max(0, amt - card);
-        }
-        const overflow = cash + gpay + card + credit - amt;
-        if (overflow > 0.001) {
-          const cashCut = Math.min(cash, overflow);
-          cash = Math.round((cash - cashCut) * 100) / 100;
-          const still = cash + gpay + card + credit - amt;
-          if (still > 0.001) credit = Math.max(0, Math.round((credit - still) * 100) / 100);
-        } else {
-          cash = Math.max(0, Math.round((amt - gpay - card - credit) * 100) / 100);
-        }
+      let party = num(f.partyPaid);
+      if (field === 'cashPaid') cash = typed;
+      if (field === 'gpayPaid') gpay = typed;
+      if (field === 'cardPaid') card = typed;
+      if (field === 'credit') credit = typed;
+      if (field === 'partyPaid') party = typed;
+      let extra = Math.round((cash + gpay + card + credit + party - amt) * 100) / 100;
+      const cut = (cur: number) => {
+        const take = Math.min(cur, Math.max(0, extra));
+        extra = Math.round((extra - take) * 100) / 100;
+        return Math.round((cur - take) * 100) / 100;
+      };
+      if (extra > 0.001 && field !== 'cashPaid') cash = cut(cash);
+      if (extra > 0.001 && field !== 'credit') credit = cut(credit);
+      if (extra > 0.001 && field !== 'gpayPaid') gpay = cut(gpay);
+      if (extra > 0.001 && field !== 'cardPaid') card = cut(card);
+      if (extra > 0.001 && field !== 'partyPaid') party = cut(party);
+      if (field !== 'cashPaid' && extra <= 0.001) {
+        cash = Math.max(0, Math.round((amt - gpay - card - credit - party) * 100) / 100);
+      } else if (field === 'cashPaid') {
+        credit = Math.max(0, Math.round((amt - cash - gpay - card - party) * 100) / 100);
       }
       return {
         ...f,
         cashPaid: field === 'cashPaid' ? shown(value, typed, amt) : n2(cash),
         gpayPaid: field === 'gpayPaid' ? shown(value, typed, amt) : n2(gpay),
         cardPaid: field === 'cardPaid' ? shown(value, typed, amt) : n2(card),
-        credit: n2(credit),
-      };
-    });
-  };
-
-  const onCredit = (value: string) => {
-    setForm((f) => {
-      const amt = num(f.amount);
-      const nextCredit = Math.min(amt, Math.max(0, num(value)));
-      let gpay = num(f.gpayPaid);
-      let card = num(f.cardPaid);
-      const room = Math.max(0, amt - nextCredit);
-      if (gpay + card > room) {
-        gpay = Math.min(gpay, room);
-        card = Math.min(card, Math.max(0, room - gpay));
-      }
-      const cash = Math.max(0, Math.round((room - gpay - card) * 100) / 100);
-      return {
-        ...f,
-        credit: shown(value, nextCredit, amt),
-        cashPaid: n2(cash),
-        gpayPaid: n2(gpay),
-        cardPaid: n2(card),
+        partyPaid: field === 'partyPaid' ? shown(value, typed, amt) : n2(party),
+        credit: field === 'credit' ? shown(value, typed, amt) : n2(credit),
       };
     });
   };
@@ -339,8 +322,9 @@ const TicketEntryPage: React.FC = () => {
   const cash = num(form.cashPaid);
   const gpay = num(form.gpayPaid);
   const card = num(form.cardPaid);
+  const party = num(form.partyPaid);
   const credit = num(form.credit);
-  const paidSum = Math.round((cash + gpay + card + credit) * 100) / 100;
+  const paidSum = Math.round((cash + gpay + card + party + credit) * 100) / 100;
   const balanced = Math.abs(paidSum - amount) <= 0.01;
 
   const onKey = (count: number, pick: (index: number) => void) => (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -385,7 +369,7 @@ const TicketEntryPage: React.FC = () => {
       return;
     }
     if (!balanced) {
-      toast.error('Cash + GPay + Card + Credit must equal the amount');
+      toast.error('Cash + GPay + Card + Paid by party + Credit must equal the amount');
       return;
     }
     const payload = {
@@ -404,10 +388,12 @@ const TicketEntryPage: React.FC = () => {
       qty: income ? num(form.qty) : 0,
       busName: form.busName.trim(),
       area: form.area.trim(),
+      seatNo: income ? '' : form.seatNo.trim(),
       amount,
       cashPaid: cash,
       gpayPaid: gpay,
       cardPaid: card,
+      partyPaid: party,
       credit,
       entryDate: form.entryDate,
       entryTime: form.entryTime,
@@ -638,11 +624,15 @@ const TicketEntryPage: React.FC = () => {
             <label>Area</label>
             <input className="mst-inp" value={form.area} onChange={(e) => setForm({ ...form, area: e.target.value })} placeholder="Area" />
           </div>
+          <div className="mst-fg">
+            <label>Seat No</label>
+            <input className="mst-inp" value={form.seatNo} onChange={(e) => setForm({ ...form, seatNo: e.target.value })} placeholder="Seat no" />
+          </div>
           </>
           )}
           <div className="mst-fg" style={{ gridColumn: '1 / -1' }}>
             <label>Notes</label>
-            <textarea className="mst-area" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Seat, passenger, or other notes" />
+            <textarea className="mst-area" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Passenger or other notes" />
           </div>
           <div className="mst-fg">
             <label>Date <span className="req">*</span></label>
@@ -654,7 +644,7 @@ const TicketEntryPage: React.FC = () => {
           </div>
           <div className="mst-fg" style={{ gridColumn: '1 / -1' }}>
             <div className="mst-note" style={{ marginBottom: 0 }}>
-              <i className="fas fa-money-bill-wave" /> Cash + GPay + Card + Credit must equal the {income ? 'income' : 'ticket'} amount. Credit is added to the customer account and collected in Credit Management.
+              <i className="fas fa-money-bill-wave" /> Cash + GPay + Card + Paid by party + Credit must equal the {income ? 'income' : 'ticket'} amount. Paid by party does not affect cash, GPay, card, credit, customer account, or day book. Credit is added to the customer account and collected in Credit Management.
             </div>
           </div>
           <div className="mst-fg">
@@ -670,12 +660,16 @@ const TicketEntryPage: React.FC = () => {
             <input className="mst-inp" type="number" min="0" step="0.01" value={form.cardPaid} onChange={(e) => onPay('cardPaid', e.target.value)} />
           </div>
           <div className="mst-fg">
+            <label>Paid by party</label>
+            <input className="mst-inp" type="number" min="0" step="0.01" value={form.partyPaid} onChange={(e) => onPay('partyPaid', e.target.value)} />
+          </div>
+          <div className="mst-fg">
             <label>Credit</label>
-            <input className="mst-inp" type="number" min="0" step="0.01" value={form.credit} onChange={(e) => onCredit(e.target.value)} />
+            <input className="mst-inp" type="number" min="0" step="0.01" value={form.credit} onChange={(e) => onPay('credit', e.target.value)} />
           </div>
           <div className="mst-fg" style={{ gridColumn: '1 / -1' }}>
             <div style={{ fontWeight: 700, color: balanced ? '#15803d' : '#b91c1c' }}>
-              Cash {n2(cash)} + GPay {n2(gpay)} + Card {n2(card)} + Credit {n2(credit)} = {n2(paidSum)}
+              Cash {n2(cash)} + GPay {n2(gpay)} + Card {n2(card)} + Party {n2(party)} + Credit {n2(credit)} = {n2(paidSum)}
               {amount > 0 ? ` / ${income ? 'Income' : 'Ticket'} ${n2(amount)}` : ''}
               {amount > 0 && !balanced ? ` · difference ${n2(paidSum - amount)}` : ''}
             </div>

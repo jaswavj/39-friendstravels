@@ -7,4 +7,5 @@ public class AccountEntryResult {
     private String entryType;
     private Double newBalance;
     private Double newAdvance;
+    private Double newBillBalance;
 }

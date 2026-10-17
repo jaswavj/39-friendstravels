@@ -10,6 +10,8 @@ public class ExpenseSaveRequest {
     private Double qty;
     private String busName;
     private String area;
+    private String customerName;
+    private String customerPhone;
     private Double amount;
     private String expenseDate;
     private String expenseTime;
@@ -18,4 +20,5 @@ public class ExpenseSaveRequest {
     private Double cashPaid;
     private Double bankPaid;
     private Double balance;
+    private Double partyPaid;
 }
