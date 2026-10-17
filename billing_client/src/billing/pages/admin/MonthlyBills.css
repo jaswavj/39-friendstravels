@@ -147,6 +147,27 @@
   font-weight: 750;
 }
 
+.log-clip {
+  max-width: 280px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.log-detail-row {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.log-detail-row strong {
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-weight: 650;
+  line-height: 1.45;
+}
+
 .mb-view-foot {
   display: flex;
   justify-content: flex-end;

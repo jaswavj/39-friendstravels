@@ -140,7 +140,7 @@ const MonthlyBillsPage: React.FC = () => {
 
   return (
     <div className="mst-page mb-page">
-      <h2 className="mst-title"><i className="fas fa-ticket-alt" /> Monthly Tickets</h2>
+      <h2 className="mst-title"><i className="fas fa-ticket-alt" /> Ticket/Income Edit</h2>
       <div className="mst-card" style={{ marginBottom: 14 }}>
         <div className="mst-card-b mst-form">
           <div className="mst-fg">

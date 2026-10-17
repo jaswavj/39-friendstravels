@@ -17,5 +17,7 @@ public class ExpenseReportRow {
     private Double amount;
     private Double partyPaid;
     private Double balance;
+    private Double cashPaid;
+    private Double bankPaid;
     private String userName;
 }

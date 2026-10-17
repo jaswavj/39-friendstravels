@@ -2,6 +2,7 @@ package com.billing.expense;
 
 import com.billing.common.JdbcPageHelper;
 import com.billing.core.response.ResponseDO;
+import com.billing.expense.dto.ExpenseCancelRequest;
 import com.billing.expense.dto.ExpenseSaveRequest;
 import com.billing.expense.dto.ExpenseTypeSaveRequest;
 import com.billing.security.PlatformSecurityContext;
@@ -45,13 +46,39 @@ public class ExpenseController {
         return ok(expenseService.saveEntry(request, currentUserId()));
     }
 
+    @GetMapping("/entries/{id}")
+    public ResponseDO get(@PathVariable Long id) {
+        return ok(expenseService.get(id));
+    }
+
+    @PostMapping("/entries/{id}")
+    public ResponseDO update(@PathVariable Long id, @RequestBody ExpenseSaveRequest request) {
+        return ok(expenseService.update(id, request, currentUserId()));
+    }
+
+    @PostMapping("/entries/{id}/cancel")
+    public ResponseDO cancel(@PathVariable Long id, @RequestBody ExpenseCancelRequest request) {
+        expenseService.cancel(id, request, currentUserId());
+        return ok(true);
+    }
+
+    @GetMapping("/edit-log")
+    public ResponseDO editLog(@RequestParam String from,
+                              @RequestParam String to,
+                              @RequestParam(defaultValue = "0") int page,
+                              @RequestParam(defaultValue = "25") int size) {
+        return ok(expenseService.editLog(from, to, page, size));
+    }
+
     @GetMapping("/report")
     public ResponseDO report(@RequestParam String from,
                              @RequestParam String to,
                              @RequestParam(required = false) Long typeId,
+                             @RequestParam(required = false) String customerName,
+                             @RequestParam(required = false) String phone,
                              @RequestParam(defaultValue = "0") int page,
                              @RequestParam(defaultValue = "25") int size) {
-        return ok(JdbcPageHelper.slice(expenseService.report(from, to, typeId), page, size));
+        return ok(JdbcPageHelper.slice(expenseService.report(from, to, typeId, customerName, phone), page, size));
     }
 
     private Long currentUserId() {

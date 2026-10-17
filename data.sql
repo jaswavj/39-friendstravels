@@ -182,6 +182,30 @@ CREATE TABLE `daybook_opening_balance` (
 
 /*Data for the table `daybook_opening_balance` */
 
+/*Table structure for table `expense_edit_log` */
+
+DROP TABLE IF EXISTS `expense_edit_log`;
+
+CREATE TABLE `expense_edit_log` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `expense_id` bigint DEFAULT NULL,
+  `doc_no` varchar(255) DEFAULT NULL,
+  `action` varchar(32) NOT NULL,
+  `details` text,
+  `uid` bigint DEFAULT NULL,
+  `date` date DEFAULT NULL,
+  `time` time DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_expense_edit_date` (`date`),
+  KEY `idx_expense_edit_expense` (`expense_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+/*Data for the table `expense_edit_log` */
+
+insert  into `expense_edit_log`(`id`,`expense_id`,`doc_no`,`action`,`details`,`uid`,`date`,`time`) values 
+(1,1,'aa','EDIT','Amount ₹100.00 → ₹1000.00 · Paid by party ₹0.00 → ₹500.00 · Cash ₹100.00 → ₹500.00',1,'2026-10-17','23:01:54'),
+(2,2,'a','CREATE','Amount ₹1000.00',1,'2026-10-17','23:03:48');
+
 /*Table structure for table `expense_entry` */
 
 DROP TABLE IF EXISTS `expense_entry`;
@@ -204,9 +228,13 @@ CREATE TABLE `expense_entry` (
   `customer_phone` varchar(64) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `type` (`exp_type`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `expense_entry` */
+
+insert  into `expense_entry`(`id`,`exp_type`,`content`,`amount`,`description`,`exc_date_time`,`entry_date_time`,`is_active`,`uid`,`qty`,`bus_name`,`area`,`party_paid`,`customer_name`,`customer_phone`) values 
+(1,1,'aa',1000.00,'','2026-10-17 22:56:00','2026-10-17 22:56:43',1,1,11.00,'2','a2',500.00,'jas','9090909090'),
+(2,1,'a',1000.00,'','2026-10-17 23:03:00','2026-10-17 23:03:48',1,1,100.00,'aa','a',0.00,'kk','1212222222');
 
 /*Table structure for table `expense_type` */
 
@@ -217,9 +245,12 @@ CREATE TABLE `expense_type` (
   `type` varchar(255) NOT NULL,
   `is_active` int DEFAULT '1',
   PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `expense_type` */
+
+insert  into `expense_type`(`id`,`type`,`is_active`) values 
+(1,'hi',1);
 
 /*Table structure for table `gstin` */
 
@@ -378,9 +409,13 @@ CREATE TABLE `prod_ledger` (
   KEY `idx_customer` (`customer_id`),
   KEY `idx_supplier` (`supplier_id`),
   KEY `idx_date_time` (`date_time`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 /*Data for the table `prod_ledger` */
+
+insert  into `prod_ledger`(`id`,`bill_type`,`bill_id`,`customer_id`,`supplier_id`,`payment_mode`,`bill_amount`,`cash_paid`,`bank_paid`,`payment_type`,`uid`,`date_time`) values 
+(2,9,1,NULL,NULL,1,500.00,500.00,0.00,0,1,'2026-10-17 23:01:54'),
+(3,9,2,NULL,NULL,2,1000.00,0.00,1000.00,1,1,'2026-10-17 23:03:48');
 
 /*Table structure for table `special_permission` */
 

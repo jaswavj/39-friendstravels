@@ -1,8 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { adminApi, adminData } from '../../../api/admin/admin-api-service';
 import { expenseApi, expenseData, expenseError, expensePage } from '../../../api/expense/expense-api-service';
 import { ticketApi, ticketData, ticketError } from '../../../api/ticket/ticket-api-service';
+import { routerPathNames } from '../../../routes/routerPathNames';
 import '../master/Master.css';
 import '../credit/Credit.css';
 import { ExpenseCompany, ExpenseVoucherData, ExpenseVoucherPreview } from './ExpenseVoucher';
@@ -16,6 +18,28 @@ const nowTime = () => {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 const n2 = (v: number) => (Number.isFinite(v) ? v.toFixed(2) : '0.00');
+
+type ExpenseDetail = {
+  id: number;
+  expenseType: number;
+  expenseTypeName?: string;
+  content: string;
+  description?: string;
+  qty?: number;
+  busName?: string;
+  area?: string;
+  customerName?: string;
+  customerPhone?: string;
+  amount: number;
+  partyPaid?: number;
+  expenseDate: string;
+  expenseTime: string;
+  payMode?: number;
+  payType?: number;
+  cashPaid?: number;
+  bankPaid?: number;
+  balance?: number;
+};
 
 const emptyForm = () => ({
   expenseType: '',
@@ -37,10 +61,36 @@ const emptyForm = () => ({
   balance: '0.00',
 });
 
+const formFromExpense = (e: ExpenseDetail) => ({
+  expenseType: e.expenseType ? String(e.expenseType) : '',
+  amount: n2(Number(e.amount || 0)),
+  qty: e.qty ? String(e.qty) : '',
+  busName: e.busName || '',
+  area: e.area || '',
+  customerName: e.customerName || '',
+  phone: e.customerPhone || '',
+  content: e.content || '',
+  description: e.description || '',
+  expenseDate: e.expenseDate || today(),
+  expenseTime: (e.expenseTime || nowTime()).slice(0, 5),
+  payMode: String(e.payMode || 1),
+  payType: String(e.payType || 0),
+  cashPaid: n2(Number(e.cashPaid || 0)),
+  bankPaid: n2(Number(e.bankPaid || 0)),
+  partyPaid: n2(Number(e.partyPaid || 0)),
+  balance: n2(Number(e.balance || 0)),
+});
+
 const ExpenseEntryPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { id: pathId } = useParams();
+  const expenseId = Number(pathId || 0) || 0;
+  const editing = expenseId > 0;
   const [types, setTypes] = useState<TypeRow[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(editing);
+  const original = useRef(emptyForm());
   const [company, setCompany] = useState<ExpenseCompany>({});
   const [print, setPrint] = useState<ExpenseVoucherData[] | null>(null);
   const [custHits, setCustHits] = useState<CustomerHit[]>([]);
@@ -61,6 +111,28 @@ const ExpenseEntryPage: React.FC = () => {
       .then((res) => setCompany(adminData<ExpenseCompany>(res) || {}))
       .catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    if (!editing) return;
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const expense = expenseData<ExpenseDetail>(await expenseApi.get(expenseId));
+        if (cancelled) return;
+        const next = formFromExpense(expense);
+        original.current = next;
+        setForm(next);
+      } catch (err) {
+        if (cancelled) return;
+        toast.error(expenseError(err, 'Could not load expense'));
+        navigate(routerPathNames.admin.monthlyExpenses);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [editing, expenseId, navigate]);
 
   const amount = parseFloat(form.amount) || 0;
   const cash = parseFloat(form.cashPaid) || 0;
@@ -232,7 +304,7 @@ const ExpenseEntryPage: React.FC = () => {
     }
     setBusy(true);
     try {
-      const saved = expenseData<{ id?: number }>(await expenseApi.saveEntry({
+      const payload = {
         expenseType: Number(form.expenseType),
         content: form.content.trim(),
         description: form.description.trim(),
@@ -250,17 +322,29 @@ const ExpenseEntryPage: React.FC = () => {
         bankPaid: cashOnly ? 0 : bank,
         partyPaid: party,
         balance: bal,
-      }));
+      };
+      const saved = expenseData<{ id?: number }>(
+        editing ? await expenseApi.update(expenseId, payload) : await expenseApi.saveEntry(payload)
+      );
+      if (editing) {
+        toast.success('Expense updated');
+        navigate(routerPathNames.admin.monthlyExpenses);
+        return;
+      }
       toast.success('Expense entry added successfully!');
       setPrint([voucherFromForm(saved?.id)]);
       setForm(emptyForm());
       setOpen(null);
     } catch (err) {
-      toast.error(expenseError(err, 'Could not save expense'));
+      toast.error(expenseError(err, editing ? 'Could not update expense' : 'Could not save expense'));
     } finally {
       setBusy(false);
     }
   };
+
+  if (loading) {
+    return <div className="mst-page"><div className="mst-empty">Loading expense…</div></div>;
+  }
 
   const previewPrint = () => {
     if (amount <= 0 || !form.content.trim()) {
@@ -272,9 +356,9 @@ const ExpenseEntryPage: React.FC = () => {
 
   return (
     <div className="mst-page">
-      <h2 className="mst-title"><i className="fas fa-receipt" /> Expense Entry</h2>
+      <h2 className="mst-title"><i className="fas fa-receipt" /> {editing ? 'Edit Expense' : 'Expense Entry'}</h2>
       <div className="mst-card" style={{ maxWidth: 900 }}>
-        <div className="mst-card-h">Add Expense Entry</div>
+        <div className="mst-card-h">{editing ? `Expense #${expenseId}` : 'Add Expense Entry'}</div>
         <form className="mst-card-b mst-form" onSubmit={onSubmit}>
           <div className="mst-fg">
             <label>Expense Type <span className="req">*</span></label>
@@ -423,11 +507,18 @@ const ExpenseEntryPage: React.FC = () => {
             </div>
           </div>
           <div className="mst-actions" style={{ gridColumn: '1 / -1' }}>
-            <button className="mst-btn mst-btn-outline" type="button" onClick={() => { setForm(emptyForm()); setOpen(null); }}>Reset</button>
+            {editing && (
+              <button className="mst-btn mst-btn-outline" type="button" onClick={() => navigate(routerPathNames.admin.monthlyExpenses)}>
+                Back
+              </button>
+            )}
+            <button className="mst-btn mst-btn-outline" type="button" onClick={() => { setForm(editing ? original.current : emptyForm()); setOpen(null); }}>Reset</button>
             <button className="mst-btn mst-btn-outline" type="button" onClick={previewPrint}>
               <i className="fas fa-print" /> Print A5
             </button>
-            <button className="mst-btn mst-btn-primary" type="submit" disabled={busy}>{busy ? 'Saving…' : 'Save Expense'}</button>
+            <button className="mst-btn mst-btn-primary" type="submit" disabled={busy}>
+              {busy ? (editing ? 'Updating…' : 'Saving…') : (editing ? 'Update Expense' : 'Save Expense')}
+            </button>
           </div>
         </form>
       </div>

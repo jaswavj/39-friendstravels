@@ -71,7 +71,6 @@ export const billingMenuConfig: MenuItemConfig[] = [
     submenus: [
       { id: 'ticket-list', name: 'Income Report', url: routerPathNames.ticket.report, icon: 'fas fa-list' },
       { id: 'ticket-booking-report', name: 'Ticket Report', url: routerPathNames.ticket.bookingReport, icon: 'fas fa-ticket-alt' },
-      { id: 'day-book', name: 'Day Book', url: routerPathNames.accountReports.dayBook, icon: 'fas fa-book' },
     ],
   },
   {
@@ -94,8 +93,10 @@ export const billingMenuConfig: MenuItemConfig[] = [
       { id: 'create-user', name: 'Create User', url: routerPathNames.users.create, icon: 'fas fa-user-plus' },
       { id: 'permission', name: 'Module Permission', url: routerPathNames.users.permission, icon: 'fas fa-key' },
       { id: 'company-details', name: 'Company Details', url: routerPathNames.admin.companyDetails, icon: 'fas fa-building' },
-      { id: 'monthly-bills', name: 'Monthly Tickets', url: routerPathNames.admin.monthlyBills, icon: 'fas fa-ticket-alt' },
-      { id: 'edit-log', name: 'Edit Log', url: routerPathNames.admin.editLog, icon: 'fas fa-history' },
+      { id: 'monthly-bills', name: 'Ticket/Income Edit', url: routerPathNames.admin.monthlyBills, icon: 'fas fa-ticket-alt' },
+      { id: 'monthly-expenses', name: 'Expense Edit', url: routerPathNames.admin.monthlyExpenses, icon: 'fas fa-pen' },
+      { id: 'edit-log', name: 'Ticket/Income Log', url: routerPathNames.admin.editLog, icon: 'fas fa-history' },
+      { id: 'expense-edit-log', name: 'Expense Edit Log', url: routerPathNames.admin.expenseEditLog, icon: 'fas fa-clipboard-list' },
     ],
   },
 ];
